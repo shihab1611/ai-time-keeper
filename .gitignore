@@ -28,3 +28,6 @@ logs/
 *.lnk
 restart.log
 ~$*
+
+# রান-টাইম স্টেট (প্রতিবার বদলায়)
+extensions/backup_state.json
