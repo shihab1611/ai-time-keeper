@@ -1,0 +1,2516 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Company Workspace</title>
+<style>
+:root{--txt:#f2f0ff;--mut:#cfc6f5;--acc:#7dd3fc;--ok:#4ade80}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;color:var(--txt);font-family:Hind Siliguri,Segoe UI,Arial,sans-serif;background:linear-gradient(120deg,#0f2027 0%,#203a43 45%,#2c5364 100%);background-attachment:fixed;overflow-x:hidden;isolation:isolate}
+.layout{max-width:1440px;margin:0 auto;padding:24px 20px 60px;display:flex;gap:20px;align-items:flex-start}
+.sidebar{position:sticky;top:20px;width:240px;flex-shrink:0;background:linear-gradient(150deg,rgba(255,255,255,.14),rgba(255,255,255,.05));backdrop-filter:blur(22px);border:1px solid rgba(255,255,255,.25);border-radius:24px;padding:20px 14px;box-shadow:0 8px 32px rgba(0,0,0,.4)}
+.sidebar .brand{display:flex;align-items:center;gap:10px;padding:4px 8px 16px;font-weight:800;font-size:15px}
+.sidebar nav{display:flex;flex-direction:column;gap:8px}
+.sidebar nav button{display:flex;align-items:center;gap:10px;width:100%;padding:13px 14px;border-radius:14px;border:1px solid transparent;background:transparent;color:var(--txt);font-weight:700;font-size:14px;cursor:pointer;text-align:left}
+.sidebar nav button:hover{background:rgba(255,255,255,.12)}
+.sidebar nav button.on{background:linear-gradient(90deg,rgba(125,211,252,.5),rgba(74,222,128,.4));border:1px solid rgba(255,255,255,.35)}
+.sidebar nav button.ext{opacity:.85}
+.logo{width:46px;height:46px;border-radius:15px;background:linear-gradient(135deg,#7dd3fc,#4ade80 60%,#22d3ee);display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 4px 16px rgba(125,211,252,.45)}
+.sideclock{margin:2px 4px 12px;padding:10px 12px;border-radius:14px;background:rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.16);text-align:center}
+.sideclock .t{font-size:21px;font-weight:800;letter-spacing:2px;font-variant-numeric:tabular-nums;color:#fff;text-shadow:0 0 12px rgba(125,211,252,.7)}
+.sideclock .d{font-size:11px;color:var(--mut);margin-top:2px}
+/* === Entry dashboard === */
+.hero{position:relative;overflow:hidden;border-radius:22px;padding:26px 22px;margin-bottom:16px;border:1px solid rgba(255,255,255,.25);background:linear-gradient(135deg,rgba(255,255,255,.13),rgba(255,255,255,.05));backdrop-filter:blur(20px);box-shadow:0 8px 32px rgba(0,0,0,.35)}
+.hero.profit{border-color:rgba(74,222,128,.55);box-shadow:0 0 34px rgba(74,222,128,.25),0 8px 32px rgba(0,0,0,.35)}
+.hero.loss{border-color:rgba(251,113,133,.6);box-shadow:0 0 34px rgba(251,113,133,.28),0 8px 32px rgba(0,0,0,.35)}
+.hero .k{font-size:13px;color:var(--mut)}
+.hero .big{font-size:44px;font-weight:800;line-height:1.1;margin:4px 0}
+.hero.profit .big{color:#4ade80;text-shadow:0 0 22px rgba(74,222,128,.6)}
+.hero.loss .big{color:#fda4af;text-shadow:0 0 22px rgba(251,113,133,.6)}
+.hero .sub2{font-size:13px;color:var(--mut)}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:16px}
+.tile{display:flex;gap:10px;align-items:center;border:1px solid rgba(255,255,255,.18);border-radius:16px;padding:12px;background:rgba(0,0,0,.25);cursor:pointer;transition:.15s;color:var(--txt);text-align:left;font-family:inherit;width:100%}
+.tile:hover{background:rgba(125,211,252,.14);border-color:rgba(125,211,252,.5)}
+.tile .ic{font-size:24px}
+.tile .v{font-size:19px;font-weight:800}
+.tile .l{font-size:11px;color:var(--mut)}
+.dues{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:800px){.dues{grid-template-columns:1fr}}
+.sidefoot{margin-top:16px;padding:12px 8px 2px;font-size:11px;color:var(--mut);border-top:1px solid rgba(255,255,255,.15)}
+main{flex:1;min-width:0;max-width:1180px}
+@media(max-width:900px){.layout{flex-direction:column}.sidebar{position:static;width:100%}.sidebar nav{flex-direction:row;overflow-x:auto}.sidebar nav button{white-space:nowrap}.sidefoot{display:none}}
+h1{margin:0;font-size:24px}p.sub{margin:4px 0 0;color:var(--mut)}
+header{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:16px}
+.card{background:linear-gradient(135deg,rgba(255,255,255,.12),rgba(255,255,255,.05));backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.22);border-radius:22px;padding:18px;margin-bottom:16px;box-shadow:0 8px 32px rgba(0,0,0,.35)}
+.card h2{margin:0 0 12px;font-size:16px}
+input{width:100%;padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.12);color:var(--txt)}
+table{width:100%;border-collapse:collapse;font-size:13px;margin-top:10px}
+th,td{border:1px solid rgba(255,255,255,.18);padding:6px 8px;text-align:left}th{background:rgba(255,255,255,.14)}
+.emp td:nth-child(4){word-break:break-word;overflow-wrap:anywhere;max-width:320px;white-space:normal}
+/* ---- Invoice paper (print-ready, navy theme) ---- */
+.inv-paper{background:#fff;color:#111;max-width:760px;margin:10px auto;padding:0;border-radius:8px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.45;box-shadow:0 6px 24px rgba(0,0,0,.35)}
+.inv-paper .band{background:#1f3864;color:#fff;display:flex;align-items:center;gap:14px;padding:16px 30px}
+.inv-paper .mono{width:44px;height:44px;border-radius:50%;background:#fff;color:#1f3864;font-weight:800;font-size:16px;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+.inv-paper .binfo .bco{font-weight:800;font-size:17px;letter-spacing:.3px}
+.inv-paper .binfo .bct{font-size:11px;color:#ced8e8;margin-top:2px}
+.inv-paper .pbody{padding:18px 30px 20px}
+.inv-paper .ttl{text-align:center;color:#1f3864;font-weight:800;font-size:15px;letter-spacing:.5px;margin:4px 0 0}
+.inv-paper .trule{width:120px;height:3px;background:#1f3864;margin:6px auto 0;border-radius:2px}
+.inv-paper .meta{display:flex;justify-content:space-between;font-size:12px;font-weight:700;margin:14px 0 0}
+.inv-paper .pf{display:flex;justify-content:space-between;align-items:flex-start;margin:12px 0 0;font-size:12px}
+.inv-paper .pf .lbl{color:#1f3864;font-weight:800;font-size:11px;letter-spacing:.5px}
+.inv-paper .pf .val{font-size:13px;font-weight:600;margin-top:2px}
+.inv-paper .pf .sub{color:#6e6e6e;font-size:12px}
+.inv-paper .pf .pr{text-align:right}
+.inv-paper .pill{display:inline-block;background:#e0e7f2;color:#1f3864;border:1px solid #1f3864;border-radius:4px;padding:5px 12px;font-weight:800;font-size:11px;letter-spacing:.3px;margin:14px 0 0}
+.inv-paper table.it{width:100%;border-collapse:collapse;margin:14px 0 0;font-size:12px;border:1px solid #c9d1de}
+.inv-paper table.it th{background:#1f3864;color:#fff;font-weight:700;padding:8px;text-align:center;border:none}
+.inv-paper table.it td{border:1px solid #c9d1de;padding:7px 8px;text-align:center;color:#111;background:#fff}
+.inv-paper table.it tbody tr:nth-child(even) td{background:#f4f7fb}
+.inv-paper table.it td.l,.inv-paper table.it th.l{text-align:left}
+.inv-paper table.it td.num{text-align:right}
+.inv-paper .sums{margin-left:auto;width:320px;font-size:12px;margin-top:14px}
+.inv-paper .sums .row{display:flex;justify-content:space-between;padding:4px 8px;color:#6e6e6e}
+.inv-paper .sums .row span:last-child{color:#111;font-weight:600}
+.inv-paper .sums .row.net{background:#1f3864;color:#fff;font-weight:800;border-radius:4px;padding:8px;margin-top:4px;font-size:13px}
+.inv-paper .sums .row.net span:last-child{color:#fff}
+.inv-paper .wordsbox{position:relative;background:#e0e7f2;border-radius:4px;padding:9px 12px 9px 16px;margin:14px 0 0;font-size:12px;color:#1f3864;font-style:italic;font-weight:600;overflow:hidden}
+.inv-paper .wordsbox .wbar{position:absolute;left:0;top:0;bottom:0;width:5px;background:#1f3864}
+.inv-paper .footwrap{display:flex;justify-content:space-between;align-items:flex-end;margin:20px 0 0}
+.inv-paper .thanks b{font-size:15px;color:#111}
+.inv-paper .thanks .qnote{font-size:10px;color:#888;margin-top:4px}
+.inv-paper .sigbox{width:190px;border:1.5px solid #1f3864;border-radius:4px;padding:26px 12px 8px;text-align:center;position:relative}
+.inv-paper .sigbox .sigline{position:absolute;left:14px;right:14px;bottom:22px;border-top:1px solid #666}
+.inv-paper .sigbox .siglbl{font-size:10px;color:#6e6e6e;margin-top:22px}
+.inv-paper .fbar{background:#1f3864;color:#fff;text-align:center;font-size:10px;padding:10px;letter-spacing:.3px}
+/* ---- inline edit fields inside paper ---- */
+.inv-paper input.peRate{width:74px;border:1px solid #1f3864;border-radius:4px;background:#eef3fb;color:#1f3864;font-weight:700;font-size:12px;padding:3px 6px;text-align:right;outline:none}
+.inv-paper input.peRate:focus{background:#fff;box-shadow:0 0 0 2px rgba(31,56,100,.25)}
+.inv-paper input.peAdj{width:92px;border:1px dashed #1f3864;border-radius:4px;background:#eef3fb;color:#1f3864;font-weight:700;font-size:12px;padding:3px 6px;text-align:right;outline:none}
+.inv-paper input.peAdj:focus{background:#fff;box-shadow:0 0 0 2px rgba(31,56,100,.25)}
+.inv-paper .sums .row span:last-child{display:flex;justify-content:flex-end;align-items:center;gap:5px}
+@media print{
+@page{size:A4;margin:10mm}
+body *{visibility:hidden!important}
+.inv-paper,.inv-paper *{visibility:visible!important}
+.inv-paper{position:absolute;left:0;top:0;box-shadow:none;border-radius:0;max-width:100%;width:190mm;padding:0;margin:0;font-size:11px;line-height:1.3}
+.inv-paper .band{padding:12px 16px;gap:10px}
+.inv-paper .mono{width:34px;height:34px;font-size:13px}
+.inv-paper .binfo .bco{font-size:14px}
+.inv-paper .binfo .bct{font-size:10px}
+.inv-paper .pbody{padding:12px 16px 14px}
+.inv-paper .ttl{font-size:13px}
+.inv-paper .trule{width:90px;height:2px}
+.inv-paper .meta{font-size:11px;margin-top:10px}
+.inv-paper .pf{font-size:11px;margin-top:8px}
+.inv-paper .pf .lbl{font-size:10px}
+.inv-paper .pf .val{font-size:11px}
+.inv-paper .pf .sub{font-size:11px}
+.inv-paper .pill{font-size:10px;padding:4px 10px;margin-top:10px}
+.inv-paper table.it{font-size:10px;margin-top:10px}
+.inv-paper table.it th{padding:5px}
+.inv-paper table.it td{padding:4px 5px}
+.inv-paper .sums{width:250px;font-size:11px;margin-top:10px}
+.inv-paper .sums .row{padding:2px 6px}
+.inv-paper .sums .row.net{padding:6px;font-size:11px}
+.inv-paper .wordsbox{font-size:10px;padding:7px 10px 7px 14px;margin-top:10px}
+.inv-paper .footwrap{margin-top:12px}
+.inv-paper .thanks b{font-size:12px}
+.inv-paper .thanks .qnote{font-size:9px}
+.inv-paper .sigbox{width:150px;padding:18px 10px 6px}
+.inv-paper .sigbox .sigline{bottom:16px}
+.inv-paper .sigbox .siglbl{font-size:9px;margin-top:16px}
+.inv-paper .fbar{font-size:9px;padding:7px}
+}
+button.ghost{padding:8px 14px;border-radius:10px;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.12);color:var(--txt);cursor:pointer;font-size:13px;margin:2px}
+button.ghost:hover{background:rgba(255,255,255,.22)}
+button.ghost.primary{background:linear-gradient(90deg,#7dd3fc,#4ade80);border:none;color:#082f49;font-weight:800}
+a.file{color:var(--acc);text-decoration:none}a.file:hover{text-decoration:underline}
+
+/* === Unified Add Modal === */
+.uam-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.7);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px}
+.uam-panel{background:linear-gradient(135deg,rgba(255,255,255,.12),rgba(255,255,255,.05));backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.22);border-radius:22px;padding:24px;max-width:720px;width:100%;max-height:90vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.uam-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.uam-header h3{margin:0;font-size:18px}
+.uam-close{background:none;border:none;color:var(--mut);font-size:22px;cursor:pointer;padding:4px;line-height:1}
+.uam-close:hover{color:var(--txt)}
+.uam-search{margin-bottom:16px}
+#uamSearch{width:100%;padding:14px 16px;font-size:15px;border-radius:14px;border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.12);color:var(--txt)}
+#uamSearch:focus{outline:none;border-color:#7dd3fc;box-shadow:0 0 0 3px rgba(125,211,252,.2)}
+.uam-results{max-height:300px;overflow:auto;margin-top:8px;border:1px solid rgba(255,255,255,.14);border-radius:12px;background:rgba(0,0,0,.2)}
+.uam-result{display:flex;gap:12px;padding:12px 14px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,.08)}
+.uam-result:hover{background:rgba(125,211,252,.15)}
+.uam-icon{font-size:20px}
+.uam-result strong{display:block;color:var(--txt)}
+.uam-result small{color:var(--mut);font-size:12px}
+.uam-tags{display:flex;gap:4px;margin-top:6px;flex-wrap:wrap}
+.uam-tag{font-size:10px;padding:2px 6px;border-radius:9px;font-weight:700}
+.uam-tag.advance{background:rgba(125,211,252,.25);color:#7dd3fc;border:1px solid rgba(125,211,252,.4)}
+.uam-tag.labor{background:rgba(74,222,128,.25);color:#4ade80;border:1px solid rgba(74,222,128,.4)}
+.uam-tag.phone{background:rgba(251,191,36,.25);color:#fbbf24;border:1px solid rgba(251,191,36,.4)}
+.uam-hint{padding:12px;color:var(--mut);text-align:center;font-size:13px}
+.uam-loading{padding:12px;color:var(--acc);text-align:center}
+.uam-form{margin-top:16px;padding-top:16px;border-top:1px solid rgba(255,255,255,.12)}
+.uam-form h4{margin:0 0 12px;font-size:15px}
+.uam-row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+.uam-row>div{flex:1;min-width:140px}
+.uam-row label{display:block;margin-bottom:4px;font-size:12px;color:var(--mut)}
+.uam-row input,.uam-row select{width:100%;padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.12);color:var(--txt)}
+.uam-actions{display:flex;gap:10px;margin-top:16px;justify-content:flex-end}
+.uam-btn{padding:12px 24px;border-radius:12px;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.12);color:var(--txt);cursor:pointer;font-weight:700;font-size:13px}
+.uam-btn.primary{background:linear-gradient(90deg,#7dd3fc,#4ade80);border:none;color:#082f49}
+.uam-btn:hover{background:rgba(255,255,255,.22)}
+.uam-status{margin-top:12px;padding:10px;border-radius:10px;background:rgba(0,0,0,.3);text-align:center;font-weight:600}
+.uam-status.error{background:rgba(251,113,133,.2);color:#fda4af}
+.uam-hint{padding:12px;color:var(--mut);text-align:center}
+.uam-loading{padding:12px;color:var(--acc);text-align:center}
+/* ================= ⚡ SNAPPY ACTION FEEDBACK (liquid-glass) ================= */
+/*  বাটন: চলছে (ঘূর্ণায়মান রিং) → সফল (সবুজ ✓) → ব্যর্থ (লাল ✕) */
+.act,.ghost,button.act,button.ghost{position:relative}
+button.fx-busy{color:transparent!important;pointer-events:none;box-shadow:none!important}
+button.fx-busy::after{content:'';position:absolute;left:50%;top:50%;width:16px;height:16px;
+ margin:-8px 0 0 -8px;border-radius:50%;border:2.5px solid rgba(255,255,255,.3);border-top-color:#fff;
+ box-shadow:0 0 12px rgba(255,255,255,.5);animation:fxSpin .6s linear infinite}
+@keyframes fxSpin{to{transform:rotate(360deg)}}
+button.fx-done{color:transparent!important;pointer-events:none;
+ background:linear-gradient(135deg,#10b981,#22d3ee)!important;
+ border-color:rgba(74,222,128,.7)!important;
+ box-shadow:0 12px 34px rgba(16,185,129,.5)!important;
+ animation:fxPop .55s cubic-bezier(.34,1.56,.64,1)}
+button.fx-done::after{content:'✓';position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+ font-size:20px;font-weight:900;color:#04210f;text-shadow:0 0 10px rgba(255,255,255,.75)}
+@keyframes fxPop{0%{transform:scale(1)}32%{transform:scale(1.16)}68%{transform:scale(.95)}100%{transform:scale(1)}}
+button.fx-bad{color:transparent!important;pointer-events:none;
+ background:linear-gradient(135deg,#ef4444,#f97316)!important;
+ border-color:rgba(248,113,113,.75)!important;
+ box-shadow:0 12px 34px rgba(239,68,68,.5)!important;animation:fxShake .55s}
+button.fx-bad::after{content:'✕';position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+ font-size:18px;font-weight:900;color:#fff;text-shadow:0 0 10px rgba(0,0,0,.55)}
+@keyframes fxShake{0%,100%{transform:translateX(0)}18%{transform:translateX(-10px)}38%{transform:translateX(9px)}58%{transform:translateX(-6px)}78%{transform:translateX(4px)}}
+
+/*  স্ন্যাকবার — ডান নিচে "ছুটে" ঢোকে, ডান দিয়ে "ছুটে" যায় */
+#snkBox{position:fixed;right:22px;bottom:22px;z-index:3000;display:flex;flex-direction:column;
+ gap:10px;align-items:flex-end;pointer-events:none}
+.snk,.toast{pointer-events:auto;display:flex;align-items:center;gap:11px;max-width:min(446px,84vw);
+ position:relative;overflow:hidden;padding:13px 20px 17px;border-radius:18px;
+ font-size:14.5px;font-weight:600;line-height:1.5;color:var(--txt);
+ background:linear-gradient(135deg,rgba(255,255,255,.17),rgba(255,255,255,.06));
+ border:1px solid rgba(255,255,255,.28);
+ backdrop-filter:blur(22px) saturate(160%);-webkit-backdrop-filter:blur(22px) saturate(160%);
+ box-shadow:0 16px 50px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.34);
+ animation:snkIn .42s cubic-bezier(.2,.9,.3,1.25)}
+.snk.ok,.toast.ok{border-color:rgba(74,222,128,.5);box-shadow:0 16px 50px rgba(16,185,129,.32),inset 0 1px 0 rgba(255,255,255,.34)}
+.snk.bad,.toast.bad{border-color:rgba(248,113,113,.55);box-shadow:0 16px 50px rgba(239,68,68,.34),inset 0 1px 0 rgba(255,255,255,.34)}
+.snk.info,.toast.info{border-color:rgba(103,232,249,.5);box-shadow:0 16px 50px rgba(14,165,233,.32),inset 0 1px 0 rgba(255,255,255,.34)}
+.snk .si{font-size:19px;flex:0 0 auto;animation:siPop .5s .06s cubic-bezier(.34,1.56,.64,1) both}
+.snk .sp{flex:1 1 auto;min-width:0;word-break:break-word}
+.snk .sb{position:absolute;left:14px;right:14px;bottom:6px;height:2.5px;border-radius:3px;
+ background:rgba(255,255,255,.18);overflow:hidden}
+.snk .sb i{display:block;height:100%;width:100%;border-radius:3px;
+ background:linear-gradient(90deg,#f0abfc,#a78bfa 45%,#67e8f9);animation:snkGo linear forwards}
+.snk.out{animation:snkOut .3s ease forwards}
+@keyframes snkIn{from{opacity:0;transform:translateX(54px) scale(.86);filter:blur(7px)}to{opacity:1;transform:none;filter:blur(0)}}
+@keyframes snkOut{to{opacity:0;transform:translateX(54px) scale(.9);filter:blur(5px)}}
+@keyframes siPop{from{opacity:0;transform:scale(.2) rotate(-70deg)}to{opacity:1;transform:none}}
+@keyframes snkGo{from{width:100%}to{width:0}}
+@media(max-width:520px){#snkBox{left:14px;right:14px;bottom:14px;align-items:stretch}.snk{max-width:none}}
+
+/* ================= 🎬 COMMAND PALETTE — সবকিছু সহজেই খুঁজে পান (Ctrl+K) ================= */
+.pal{position:fixed;inset:0;z-index:2600;display:none;align-items:flex-start;justify-content:center;
+ padding:11vh 18px 18px;background:rgba(6,4,24,.62);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+.pal.on{display:flex;animation:palBg .22s ease}
+@keyframes palBg{from{opacity:0}to{opacity:1}}
+.palBox{width:min(680px,96vw);max-height:72vh;display:flex;flex-direction:column;overflow:hidden;border-radius:26px;
+ background:linear-gradient(160deg,rgba(255,255,255,.19),rgba(255,255,255,.06));
+ border:1px solid rgba(255,255,255,.3);
+ backdrop-filter:blur(30px) saturate(170%);-webkit-backdrop-filter:blur(30px) saturate(170%);
+ box-shadow:0 42px 110px rgba(0,0,0,.62),inset 0 1px 0 rgba(255,255,255,.42);
+ animation:palIn .3s cubic-bezier(.2,.9,.3,1.2)}
+@keyframes palIn{from{opacity:0;transform:translateY(-24px) scale(.95)}to{opacity:1;transform:none}}
+.palTop{display:flex;align-items:center;gap:12px;padding:16px 18px;border-bottom:1px solid rgba(255,255,255,.16)}
+.palTop .pi{font-size:19px;animation:palSpin 2.6s ease-in-out infinite}
+@keyframes palSpin{0%,100%{transform:rotate(0) scale(1)}50%{transform:rotate(-12deg) scale(1.16)}}
+.palTop input{flex:1;min-width:0;background:none;border:0;outline:none;color:var(--txt);font-size:17px;font-family:inherit}
+.palTop input::placeholder{color:var(--mut);opacity:.7}
+.palTop kbd,.palFoot b{padding:3px 9px;border-radius:8px;font-size:11px;color:var(--mut);font-weight:600;
+ background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.22);font-family:inherit}
+.palList{overflow-y:auto;padding:9px;flex:1;scrollbar-width:thin}
+.palList::-webkit-scrollbar{width:8px}
+.palList::-webkit-scrollbar-thumb{background:rgba(255,255,255,.22);border-radius:8px}
+.pgrp{font-size:10.5px;letter-spacing:.14em;color:var(--mut);padding:11px 13px 6px;font-weight:800;text-transform:uppercase}
+.pit{display:flex;align-items:center;gap:12px;padding:11px 13px;border-radius:14px;cursor:pointer;
+ border:1px solid transparent;transition:.15s;animation:pitIn .26s cubic-bezier(.2,.9,.3,1.2) both}
+@keyframes pitIn{from{opacity:0;transform:translateX(-12px)}to{opacity:1;transform:none}}
+.pit .pi2{font-size:17px;flex:0 0 auto;width:34px;height:34px;display:grid;place-items:center;border-radius:11px;
+ background:rgba(255,255,255,.11);border:1px solid rgba(255,255,255,.16);transition:.18s}
+.pit .pt{flex:1;min-width:0}
+.pit .pt b{display:block;font-size:14.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pit .pt small{display:block;font-size:11.5px;color:var(--mut);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pit .pk{flex:0 0 auto;font-size:10.5px;color:var(--mut);padding:3px 9px;border-radius:8px;
+ background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18)}
+.pit.sel{background:linear-gradient(90deg,rgba(167,139,250,.34),rgba(103,232,249,.16));
+ border-color:rgba(103,232,249,.48);box-shadow:0 7px 24px rgba(139,92,246,.32)}
+.pit.sel .pi2{background:linear-gradient(135deg,#a78bfa,#67e8f9);transform:scale(1.12)}
+.pit mark{background:none;color:#fde68a;font-weight:900}
+.palEmpty{padding:36px 16px;text-align:center;color:var(--mut);font-size:14px;line-height:1.8}
+.palFoot{display:flex;gap:15px;padding:11px 18px;border-top:1px solid rgba(255,255,255,.16);font-size:11.5px;color:var(--mut)}
+.palBtn{display:inline-flex;align-items:center;gap:9px;padding:9px 14px;border-radius:13px;cursor:pointer;
+ background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.25);color:var(--txt);
+ font-size:13px;font-weight:700;font-family:inherit;transition:.22s;white-space:nowrap}
+.palBtn:hover{background:rgba(255,255,255,.2);transform:translateY(-2px);box-shadow:0 9px 26px rgba(139,92,246,.38)}
+.palBtn kbd{font-size:10px;padding:2px 6px;border-radius:6px;background:rgba(0,0,0,.28);color:var(--mut);
+ border:1px solid rgba(255,255,255,.16)}
+
+/* ================= 🌌 কার্সার-অনুসরণকারী আলো ================= */
+.cg{position:fixed;left:0;top:0;width:430px;height:430px;border-radius:50%;pointer-events:none;z-index:1;opacity:0;
+ background:radial-gradient(circle,rgba(139,92,246,.15),rgba(103,232,249,.07) 46%,transparent 70%);
+ transform:translate(-50%,-50%);transition:opacity .5s;will-change:transform}
+body.cgOn .cg{opacity:1}
+@media(hover:none),(pointer:coarse){.cg{display:none!important}}
+@media(prefers-reduced-motion:reduce){.cg{display:none!important}.pit{animation:none}}
+
+/* ================= 🃏 কার্ড হোভার-লিফট ================= */
+@media(hover:hover){
+ .card,.hero,.uam-panel{transition:transform .38s cubic-bezier(.2,.9,.3,1.2),box-shadow .38s}
+ .card:hover,.hero:hover{transform:translateY(-5px);
+  box-shadow:0 28px 68px rgba(0,0,0,.45),inset 0 0 0 1px rgba(103,232,249,.34)}
+}
+
+/* === Person CV card (search result) === */
+.cv-head{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.cv-avatar{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;background:linear-gradient(135deg,#7dd3fc,#4ade80);color:#082f49;flex-shrink:0}
+.cv-head h3{margin:0;font-size:19px}
+.cv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-bottom:12px}
+.cv-cell{border:1px solid rgba(255,255,255,.16);border-radius:12px;padding:10px 12px;background:rgba(0,0,0,.25)}
+.cv-cell small{display:block;font-size:11px;color:var(--mut);margin-bottom:2px}
+.cv-cell b{font-size:15px}
+.cv-hist{margin:4px 0 12px;font-size:12px;color:var(--mut);border-left:2px solid rgba(125,211,252,.5);padding-left:8px;max-height:120px;overflow:auto}
+.cv-hist div{margin-top:3px}
+.cv-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
+.badge{display:inline-block;padding:2px 10px;border-radius:20px;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.3);font-size:12px}
+.hint{font-size:12px;color:var(--mut);margin-top:8px}
+.status{margin-top:10px;font-size:14px;color:var(--mut)}.status.ok{color:var(--ok)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}@media(max-width:800px){.grid2{grid-template-columns:1fr}}
+.emp{display:flex;align-items:center;gap:10px;padding:10px;border-radius:12px;border:1px solid rgba(255,255,255,.15);margin-bottom:8px;cursor:pointer}
+.emp:hover{background:rgba(255,255,255,.08)}
+.emp .av{width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#7dd3fc,#4ade80);display:flex;align-items:center;justify-content:center;font-weight:800;color:#06281c;flex-shrink:0}
+.emp small{color:var(--mut)}
+.pgroup{margin:14px 0 8px;padding:10px 12px;border-radius:12px;background:linear-gradient(90deg,rgba(125,211,252,.28),rgba(74,222,128,.12));border:1px solid rgba(125,211,252,.4);font-weight:800;font-size:14px;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.pill{display:inline-block;padding:1px 9px;border-radius:20px;font-size:11px;font-weight:700;margin-left:6px;vertical-align:middle}
+.pill.prov{background:rgba(125,211,252,.25);border:1px solid rgba(125,211,252,.55);color:#e0f2fe}
+.pill.site{background:rgba(74,222,128,.22);border:1px solid rgba(74,222,128,.5);color:#dcfce7}
+.pill.off{background:rgba(251,113,133,.22);border:1px solid rgba(251,113,133,.5);color:#ffe4e6}
+.labor{border:1px solid rgba(255,255,255,.16);border-radius:14px;padding:10px 12px;margin-bottom:8px;background:rgba(255,255,255,.05)}
+.labor .top{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center}
+.labor .hist{margin-top:6px;font-size:12px;color:var(--mut);border-left:2px solid rgba(125,211,252,.5);padding-left:8px}
+.labor .hist div{margin-top:3px}
+.labor.offduty{opacity:.62}
+.labor.offduty .top b{text-decoration:line-through}
+.lform{margin:10px 0 4px;padding:12px;border-radius:12px;border:1px solid rgba(125,211,252,.5);background:rgba(10,20,35,.5)}
+.lform .row{display:flex;gap:8px;flex-wrap:wrap}
+.lform .row>div{flex:1;min-width:120px}
+.lform label{display:block;margin-bottom:3px}
+.wa-card{border:1px solid rgba(255,255,255,.16);border-radius:14px;padding:12px;margin-bottom:10px;background:rgba(255,255,255,.05)}
+.wa-card h3{margin:0 0 8px;font-size:14px}
+.wa-prev{white-space:pre-wrap;font-size:12px;background:rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.14);border-radius:10px;padding:10px;margin:8px 0;max-height:260px;overflow:auto;font-family:inherit}
+.wa-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.wa-row>div{flex:1;min-width:150px}
+.wa-phone{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.08)}
+.wa-phone input{max-width:190px}
+.bigadd{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:10px 0 4px;padding:10px;border:1px dashed rgba(125,211,252,.5);border-radius:14px}
+select{width:100%;padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.12);color:var(--txt)}
+select option,select optgroup{background:#12233a;color:#f2f0ff}
+select option:hover,select option:focus,select option:checked{background:#7dd3fc;color:#082f49}
+select:focus,select:focus-visible{outline:none;border-color:#7dd3fc}
+.fwrap{position:relative;display:inline-block;margin-left:8px;vertical-align:middle;z-index:99}
+.card>h2.advhead{position:relative;z-index:99}
+.fbtn{margin:0!important;padding:5px 13px!important;font-weight:700}
+.fmenu{display:none;position:absolute;top:calc(100% + 6px);left:0;z-index:60;min-width:200px;background:#0f172a;border:1px solid rgba(255,255,255,.28);border-radius:12px;padding:6px;box-shadow:0 14px 40px rgba(0,0,0,.55)}
+.fmenu.open{display:block}
+.fmenu button{display:block;width:100%;text-align:left;padding:9px 12px;margin:0;border:0;border-radius:9px;background:transparent;color:var(--txt);cursor:pointer;font-size:13px;font-weight:600;font-family:inherit}
+.fmenu button:hover{background:rgba(125,211,252,.28)}
+.fmenu button.on{background:linear-gradient(90deg,rgba(125,211,252,.5),rgba(74,222,128,.35))}
+/* === লোক ও সাইট — নতুন কার্ড লেআউট === */
+.labor.labw{border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:10px 12px;margin-bottom:8px;background:rgba(255,255,255,.05)}
+.labw-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.labw-id{min-width:170px;flex:1}
+.labw-id b{font-size:14px}
+.labw-id small{display:block;color:var(--mut);font-size:11px;margin-top:2px}
+.labw-chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;white-space:nowrap;background:rgba(125,211,252,.16);border:1px solid rgba(125,211,252,.4);color:#e0f2fe}
+.chip.site{background:rgba(74,222,128,.16);border-color:rgba(74,222,128,.45);color:#dcfce7}
+.chip.off{background:rgba(251,113,133,.16);border-color:rgba(251,113,133,.45);color:#ffe4e6}
+.chip.mute{background:rgba(255,255,255,.07);border-color:rgba(255,255,255,.16);color:var(--mut);font-weight:600}
+.labw-acts{display:flex;gap:6px;margin-left:auto}
+.iact{margin:0!important;padding:6px 10px!important;border-radius:10px}
+.labw-hist{margin-top:8px;border-left:2px solid rgba(125,211,252,.5);padding-left:10px;font-size:12px;color:var(--mut)}
+.labw-hist div{margin-top:4px}
+.labgrp .labcaret{display:inline-block;margin-left:6px;transition:.15s}
+.labgrp.collapsed .labcaret{transform:rotate(-90deg)}
+.labor.offduty .labw-id b{text-decoration:line-through}
+@media(max-width:700px){.labw-acts{margin-left:0}}
+footer{margin-top:18px;color:var(--mut);font-size:12px;text-align:center}
+</style>
+<!-- ===== WORKSPACE design system v2 ===== -->
+<style>
+/* ============================================================================
+   WORKSPACE — modern design system + theme + language + collapsible cards.
+   Appended after the legacy <style> so these rules win.
+   ============================================================================ */
+:root{
+  --f-sans:'Nirmala UI','Shonar Bangla','Kalpurush','Segoe UI Variable Text','Segoe UI',system-ui,sans-serif;
+  --r-xs:8px; --r-sm:12px; --r:16px; --r-lg:22px; --r-full:999px;
+  --s1:4px;--s2:8px;--s3:12px;--s4:16px;--s5:20px;--s6:24px;--s7:32px;
+  --acc:#60a5fa;--ok:#34d399;--warn:#fbbf24;--red:#fb7185;--vio:#a78bfa;--pink:#f472b6;--cyan:#22d3ee;
+
+  --g1:rgba(255,255,255,.075);
+  --g2:rgba(255,255,255,.028);
+  --side:rgba(9,14,32,.72);
+  --bar:rgba(9,14,32,.93);
+  --field:rgba(6,11,26,.62);
+  --fieldOn:rgba(6,11,26,.82);
+  --card-brd:rgba(255,255,255,.14);
+  --card-brd-hi:rgba(255,255,255,.28);
+  --txt:#eef2ff;--mut:#a8b3d1;--dim:#7d88a8;
+  --sh2:0 6px 20px rgba(2,6,23,.45);
+  --sh3:0 18px 48px rgba(2,6,23,.55);
+  --ease:cubic-bezier(.22,.61,.36,1);
+  --dur:.22s;
+}
+
+/* ---------- base ---------- */
+body{font-family:var(--f-sans);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4{font-weight:650;letter-spacing:-.01em;line-height:1.3}
+button,input,select,textarea{font-family:inherit;font-size:inherit}
+*::-webkit-scrollbar{width:11px;height:11px}
+*::-webkit-scrollbar-track{background:transparent}
+*::-webkit-scrollbar-thumb{background:rgba(255,255,255,.16);border-radius:99px;border:3px solid transparent;background-clip:content-box}
+*::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.3);background-clip:content-box}
+
+/* ---------- sidebar ---------- */
+.sidebar{
+  background:var(--side)!important;
+  border:1px solid var(--card-brd)!important;
+  border-radius:var(--r-lg)!important;
+  box-shadow:var(--sh2)!important;
+  backdrop-filter:blur(24px) saturate(160%);
+  -webkit-backdrop-filter:blur(24px) saturate(160%);
+}
+.sidebar .brand{font-weight:750;letter-spacing:-.02em}
+.sidebar nav{gap:2px!important}
+.sidebar nav button{
+  border-radius:var(--r-sm)!important;
+  border:1px solid transparent!important;
+  background:transparent!important;
+  color:var(--mut)!important;
+  font-weight:580;padding:10px 12px!important;
+  position:relative;
+  transition:background var(--dur) var(--ease),color var(--dur) var(--ease),transform .12s var(--ease);
+}
+.sidebar nav button:hover{background:rgba(255,255,255,.08)!important;color:var(--txt)!important;transform:translateX(2px)}
+.sidebar nav button.on{
+  background:linear-gradient(135deg,rgba(96,165,250,.26),rgba(167,139,250,.2))!important;
+  color:#fff!important;border-color:rgba(148,163,184,.34)!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.14),0 4px 16px rgba(59,130,246,.18);
+}
+.sidebar nav button.on::before{
+  content:'';position:absolute;left:-1px;top:22%;bottom:22%;width:3px;border-radius:99px;
+  background:linear-gradient(180deg,var(--acc),var(--vio));
+}
+.sidebar nav button.ext{opacity:.85}
+.sideclock{background:rgba(255,255,255,.05)!important;border-color:var(--card-brd)!important;border-radius:var(--r-sm)!important}
+.sidefoot{color:var(--dim)!important;font-size:12px}
+
+/* ---------- cards ---------- */
+.card{
+  background:linear-gradient(160deg,var(--g1),var(--g2))!important;
+  backdrop-filter:blur(20px) saturate(150%);
+  -webkit-backdrop-filter:blur(20px) saturate(150%);
+  border:1px solid var(--card-brd)!important;
+  border-radius:var(--r-lg)!important;
+  padding:var(--s5)!important;
+  margin-bottom:var(--s5)!important;
+  box-shadow:var(--sh2)!important;
+  transition:border-color var(--dur) var(--ease),box-shadow var(--dur) var(--ease),transform var(--dur) var(--ease);
+  position:relative;
+}
+.card:hover{border-color:var(--card-brd-hi)!important;box-shadow:var(--sh3)!important}
+.card>h2{display:flex;align-items:center;gap:10px;font-size:15.5px!important;font-weight:650;margin:0 0 var(--s4)!important}
+.card>h2 .badge{margin-left:auto}
+
+.wa-card,.labor,.lform{
+  background:var(--g2)!important;border-color:rgba(255,255,255,.1)!important;
+  border-radius:var(--r)!important;transition:all var(--dur) var(--ease);
+}
+.wa-card:hover,.labor:hover{border-color:var(--card-brd-hi)!important;transform:translateY(-1px)}
+
+/* ---------- collapsible ---------- */
+.card[data-collapsible]>.card-body{display:block;animation:wsCardIn .24s var(--ease)}
+.card[data-collapsed="1"]{padding-top:var(--s3)!important;padding-bottom:var(--s3)!important;background:var(--g2)!important}
+.card[data-collapsed="1"]>.card-body{display:none}
+.card[data-collapsed="1"]>h2{margin-bottom:0!important}
+@keyframes wsCardIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+.eyeBtn{
+  margin-left:auto;flex:none;width:32px;height:32px;padding:0!important;
+  display:inline-flex;align-items:center;justify-content:center;
+  border-radius:var(--r-sm)!important;border:1px solid rgba(255,255,255,.14)!important;
+  background:rgba(255,255,255,.07)!important;color:var(--mut)!important;
+  cursor:pointer;line-height:1;transition:all var(--dur) var(--ease);
+}
+.eyeBtn:hover{background:rgba(255,255,255,.16)!important;color:#fff!important;transform:scale(1.08)}
+.card[data-collapsed="1"] .eyeBtn{
+  background:linear-gradient(135deg,rgba(96,165,250,.3),rgba(167,139,250,.24));
+  border-color:rgba(148,163,184,.4);color:#fff;
+}
+
+/* ---------- buttons / forms ---------- */
+button.ghost,.ghost{
+  border-radius:var(--r-sm)!important;border:1px solid rgba(255,255,255,.17)!important;
+  background:rgba(255,255,255,.06)!important;color:var(--txt)!important;
+  font-weight:560;transition:all var(--dur) var(--ease);
+}
+button.ghost:hover,.ghost:hover{background:rgba(255,255,255,.14)!important;border-color:rgba(255,255,255,.3)!important}
+.ghost.primary{background:linear-gradient(135deg,rgba(96,165,250,.3),rgba(167,139,250,.24))!important;border-color:rgba(148,163,184,.4)!important;color:#fff!important}
+button.bigadd{
+  border-radius:var(--r)!important;font-weight:640;font-size:15px;padding:12px 18px!important;
+  background:linear-gradient(135deg,#3b82f6,#7c3aed 52%,#06b6d4)!important;
+  border:1px solid rgba(255,255,255,.16)!important;color:#fff!important;
+  box-shadow:0 6px 22px rgba(59,130,246,.34)!important;
+  transition:transform .14s var(--ease),filter var(--dur) var(--ease);
+}
+button.bigadd:hover{filter:brightness(1.1);transform:translateY(-1px)}
+
+label{font-size:12.5px;font-weight:600;color:var(--mut);letter-spacing:.02em}
+input,select,textarea{
+  background:var(--field)!important;border:1px solid rgba(255,255,255,.14)!important;
+  border-radius:var(--r-sm)!important;color:var(--txt)!important;padding:9px 12px!important;width:100%;
+  outline:none;transition:border-color var(--dur) var(--ease),box-shadow var(--dur) var(--ease),background var(--dur) var(--ease);
+}
+input:focus,select:focus,textarea:focus{
+  border-color:rgba(96,165,250,.75)!important;box-shadow:0 0 0 3px rgba(96,165,250,.18)!important;
+  background:var(--fieldOn)!important;
+}
+select option{background:#0f172a;color:var(--txt)}
+.wa-prev{background:rgba(0,0,0,.3)!important;border-color:var(--card-brd)!important;border-radius:var(--r-sm)!important}
+
+/* ---------- badges / status ---------- */
+.badge{
+  background:rgba(96,165,250,.2)!important;border:1px solid rgba(96,165,252,.34)!important;
+  color:#bfdbfe!important;border-radius:var(--r-full)!important;font-size:12px;font-weight:600;padding:2px 10px!important;
+}
+.hint{color:var(--mut);font-size:13px;line-height:1.6;opacity:.92}
+.status{border-radius:var(--r-sm)!important;padding:10px 13px!important;font-size:13.5px;margin-top:var(--s3)!important;white-space:pre-wrap;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);color:var(--mut)}
+.status.ok{background:rgba(52,211,153,.12)!important;border-color:rgba(52,211,153,.34)!important;color:#a7f3d0}
+.status.err{background:rgba(251,113,133,.12)!important;border-color:rgba(251,113,133,.34)!important;color:#fecdd3}
+.status:empty{display:none!important}
+.pill.prov{background:rgba(96,165,250,.22)!important;border-color:rgba(96,165,250,.5)!important;color:#dbeafe!important}
+.pill.site{background:rgba(52,211,153,.2)!important;border-color:rgba(52,211,153,.46)!important;color:#d1fae5!important}
+.pill.off{background:rgba(251,113,133,.2)!important;border-color:rgba(251,113,133,.46)!important;color:#ffe4e6!important}
+.tiles .tile,.hero,.dues{background:var(--g1)!important;border-color:var(--card-brd)!important;border-radius:var(--r)!important}
+
+/* ---------- workspace toolbar ---------- */
+.uiBar{overflow:visible!important;
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:11px 14px;margin-bottom:var(--s5);
+  background:var(--bar);border:1px solid rgba(255,255,255,.17);border-radius:var(--r);
+  box-shadow:0 10px 34px rgba(2,6,23,.55);
+  position:sticky;top:6px;z-index:60;
+  backdrop-filter:blur(20px) saturate(150%);-webkit-backdrop-filter:blur(20px) saturate(150%);
+}
+.uiBar .lbl{font-size:12.5px;font-weight:650;color:#dbe4ff;margin:0}
+.uiBar .sp{flex:1}
+.uiBar button{
+  padding:7px 14px!important;font-size:12.5px;font-weight:600;border-radius:var(--r-sm)!important;
+  border:1px solid rgba(255,255,255,.22)!important;background:rgba(255,255,255,.12)!important;
+  color:#fff!important;box-shadow:0 2px 10px rgba(2,6,23,.4);cursor:pointer;
+  transition:all var(--dur) var(--ease);white-space:nowrap;
+}
+.uiBar button:hover{background:rgba(255,255,255,.2)!important;transform:translateY(-1px)}
+.uiBar button.on{background:linear-gradient(135deg,#3b82f6,#7c3aed)!important;border-color:transparent!important}
+
+.grpTitle{
+  display:flex;align-items:center;gap:10px;font-size:12px;font-weight:700;
+  letter-spacing:.12em;text-transform:uppercase;color:var(--dim);
+  margin:var(--s6) 0 var(--s3);
+}
+.grpTitle::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,rgba(255,255,255,.16),transparent)}
+
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+/* ---------- theme tokens (workspace) ---------- */
+body[data-theme="liquid-dark"]{
+  --g1:rgba(255,255,255,.075);--g2:rgba(255,255,255,.028);
+  --side:rgba(9,14,32,.72);--bar:rgba(9,14,32,.93);
+  --txt:#eef2ff;--mut:#a8b3d1;--dim:#7d88a8;
+  --card-brd:rgba(255,255,255,.14);--card-brd-hi:rgba(255,255,255,.28);
+  --field:rgba(6,11,26,.62);--fieldOn:rgba(6,11,26,.82);
+  --acc:#60a5fa;--ok:#34d399;--vio:#a78bfa;--cyan:#22d3ee;
+  --sh2:0 6px 20px rgba(2,6,23,.45);--sh3:0 18px 48px rgba(2,6,23,.55);
+  background:linear-gradient(120deg,#020617 0%,#0f172a 35%,#164e63 75%,#0e7490 100%)!important;
+}
+body[data-theme="midnight"]{
+  --txt:#dbeafe;--mut:#93a5c9;--dim:#6b7fa6;
+  --g1:rgba(96,165,250,.07);--g2:rgba(15,23,42,.34);
+  --side:rgba(3,7,18,.86);--bar:rgba(3,7,18,.95);
+  --card-brd:rgba(96,165,250,.16);--card-brd-hi:rgba(96,165,250,.34);
+  --field:rgba(2,6,23,.75);--fieldOn:rgba(2,6,23,.92);
+  --acc:#3b82f6;--ok:#34d399;--vio:#818cf8;--cyan:#22d3ee;
+  background:linear-gradient(150deg,#020617 0%,#071233 45%,#0b1e3f 100%)!important;
+}
+body[data-theme="deepsea"]{
+  --txt:#e0f7fb;--mut:#9dc6d4;--dim:#7199a8;
+  --g1:rgba(103,232,249,.085);--g2:rgba(8,47,66,.3);
+  --side:rgba(3,26,38,.82);--bar:rgba(3,26,38,.94);
+  --card-brd:rgba(103,232,249,.17);--card-brd-hi:rgba(103,232,249,.36);
+  --field:rgba(2,20,30,.72);--fieldOn:rgba(2,20,30,.9);
+  --acc:#22d3ee;--ok:#34d399;--vio:#38bdf8;--cyan:#5eead4;
+  background:linear-gradient(150deg,#021a26 0%,#043b4d 50%,#075985 100%)!important;
+}
+body[data-theme="royal"]{
+  --txt:#f0e7ff;--mut:#c4b0e8;--dim:#9b86c9;
+  --g1:rgba(216,180,254,.085);--g2:rgba(46,16,101,.32);
+  --side:rgba(24,10,52,.82);--bar:rgba(24,10,52,.94);
+  --card-brd:rgba(167,139,250,.19);--card-brd-hi:rgba(167,139,250,.4);
+  --field:rgba(20,8,45,.72);--fieldOn:rgba(20,8,45,.9);
+  --acc:#a78bfa;--ok:#34d399;--vio:#f472b6;--cyan:#c084fc;
+  background:linear-gradient(150deg,#160b30 0%,#2e1065 45%,#4c1d95 100%)!important;
+}
+body[data-theme="liquid-light"]{
+  --txt:#0f172a;--mut:#475569;--dim:#64748b;
+  --g1:rgba(255,255,255,.75);--g2:rgba(255,255,255,.45);
+  --side:rgba(255,255,255,.8);--bar:rgba(255,255,255,.95);
+  --card-brd:rgba(15,23,42,.12);--card-brd-hi:rgba(15,23,42,.24);
+  --field:rgba(255,255,255,.85);--fieldOn:#fff;
+  --acc:#2563eb;--ok:#059669;--vio:#7c3aed;--cyan:#0891b2;
+  --sh2:0 6px 20px rgba(15,23,42,.1);--sh3:0 18px 48px rgba(15,23,42,.14);
+  background:linear-gradient(120deg,#f0f9ff 0%,#e0f2fe 30%,#fdf4ff 60%,#fae8ff 100%)!important;
+}
+body[data-theme="paper"]{
+  --txt:#1c1917;--mut:#57534e;--dim:#78716c;
+  --g1:rgba(255,255,255,.85);--g2:rgba(255,252,245,.6);
+  --side:rgba(255,253,249,.88);--bar:rgba(255,253,249,.96);
+  --card-brd:rgba(120,113,108,.16);--card-brd-hi:rgba(120,113,108,.3);
+  --field:rgba(255,255,255,.88);--fieldOn:#fff;
+  --acc:#c2410c;--ok:#059669;--vio:#7c3aed;--cyan:#0e7490;
+  --sh2:0 4px 16px rgba(120,113,108,.14);--sh3:0 16px 40px rgba(120,113,108,.18);
+  background:linear-gradient(150deg,#faf7f0 0%,#f1ede4 50%,#e9f1f5 100%)!important;
+}
+
+/* ---------- light themes: ink that was only ever designed for dark ---------- */
+body[data-theme="liquid-light"] .uiBar,
+body[data-theme="paper"] .uiBar{border-color:rgba(15,23,42,.14)!important}
+body[data-theme="liquid-light"] .uiBar .lbl,
+body[data-theme="paper"] .uiBar .lbl{color:#334155!important}
+body[data-theme="liquid-light"] .uiBar button,
+body[data-theme="paper"] .uiBar button{background:rgba(15,23,42,.06)!important;border-color:rgba(15,23,42,.16)!important;color:#1e293b!important;box-shadow:none!important}
+body[data-theme="liquid-light"] .hint,
+body[data-theme="paper"] .hint{color:#475569!important}
+body[data-theme="liquid-light"] .badge,
+body[data-theme="paper"] .badge{color:#1d4ed8!important;background:rgba(37,99,235,.12)!important;border-color:rgba(37,99,235,.3)!important}
+body[data-theme="liquid-light"] .status,
+body[data-theme="paper"] .status{color:#334155!important;background:rgba(15,23,42,.04)!important;border-color:rgba(15,23,42,.12)!important}
+body[data-theme="liquid-light"] .status.ok,
+body[data-theme="paper"] .status.ok{color:#065f46!important;background:rgba(16,185,129,.12)!important;border-color:rgba(16,185,129,.32)!important}
+body[data-theme="liquid-light"] .status.err,
+body[data-theme="paper"] .status.err{color:#9f1239!important;background:rgba(244,63,94,.12)!important;border-color:rgba(244,63,94,.32)!important}
+body[data-theme="liquid-light"] .ghost,
+body[data-theme="paper"] .ghost{color:#1e293b!important;background:rgba(15,23,42,.05)!important}
+body[data-theme="liquid-light"] .eyeBtn,
+
+/* ---------- settings: language buttons ---------- */
+#wsSetCard .seg{margin:6px 0 10px!important;display:flex;gap:10px!important}
+#wsSetCard .seg button{
+  padding:11px 26px!important;border-radius:var(--r-sm)!important;
+  font-weight:650;font-size:14.5px;cursor:pointer;
+  border:1px solid rgba(255,255,255,.18)!important;
+  background:rgba(255,255,255,.07)!important;color:var(--txt)!important;
+  transition:all var(--dur) var(--ease);
+}
+#wsSetCard .seg button:hover{background:rgba(255,255,255,.16)!important;transform:translateY(-1px)}
+#wsSetCard .seg button.on{
+  background:linear-gradient(135deg,#3b82f6,#7c3aed)!important;
+  border-color:transparent!important;color:#fff!important;
+  box-shadow:0 6px 20px rgba(59,130,246,.35)!important;
+}
+body[data-theme="liquid-light"] #wsSetCard .seg button,
+body[data-theme="paper"] #wsSetCard .seg button{
+  background:rgba(15,23,42,.05)!important;color:#1e293b!important;
+  border-color:rgba(15,23,42,.16)!important;
+}
+body[data-theme="liquid-light"] #wsSetCard .seg button.on,
+body[data-theme="paper"] #wsSetCard .seg button.on{color:#fff!important}
+#wsSetCard .wa-row{margin-top:6px}
+
+/* ---------- theme picker cards (settings page) ---------- */
+.theme-grid{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+  gap:12px;margin-top:4px;
+}
+.theme-card{
+  border-radius:var(--r)!important;padding:10px!important;
+  border:2px solid var(--card-brd)!important;
+  background:var(--g1)!important;cursor:pointer;
+  transition:transform .16s var(--ease),border-color var(--dur) var(--ease),box-shadow var(--dur) var(--ease);
+}
+.theme-card:hover{transform:translateY(-3px);border-color:var(--card-brd-hi)!important}
+.theme-card.on{
+  border-color:var(--acc)!important;
+  box-shadow:0 8px 26px rgba(59,130,246,.35)!important;
+}
+.theme-card b{display:block;font-size:13px;margin:8px 0 2px;font-weight:650}
+.theme-card small{font-size:11.5px;color:var(--mut);display:block;line-height:1.45}
+.theme-prev{height:60px;border-radius:var(--r-sm);border:1px solid var(--card-brd)}
+.tp-liquid-dark{background:linear-gradient(120deg,#020617,#164e63 75%,#0e7490)}
+.tp-liquid-light{background:linear-gradient(120deg,#f0f9ff,#e0f2fe 40%,#fdf4ff 70%,#fae8ff);border-color:rgba(15,23,42,.15)}
+.tp-midnight{background:linear-gradient(120deg,#020617,#071233 45%,#0b1e3f)}
+.tp-deepsea{background:linear-gradient(120deg,#021a26,#043b4d 50%,#075985)}
+.tp-royal{background:linear-gradient(120deg,#160b30,#2e1065 50%,#4c1d95)}
+.tp-paper{background:linear-gradient(120deg,#faf7f0,#f1ede4 50%,#e9f1f5);border-color:rgba(120,113,108,.2)}
+body[data-theme="liquid-light"] .theme-card small,
+body[data-theme="paper"] .theme-card small{color:#475569!important}
+
+/* ---------- the settings section reads a bit wider ---------- */
+#ws9 .card{max-width:1000px}
+
+body[data-theme="paper"] .eyeBtn{color:#334155!important;border-color:rgba(15,23,42,.18)!important;background:rgba(15,23,42,.06)!important}
+body[data-theme="liquid-light"] .card[data-collapsed="1"] .eyeBtn,
+body[data-theme="paper"] .card[data-collapsed="1"] .eyeBtn{
+  background:linear-gradient(135deg,rgba(37,99,235,.22),rgba(124,58,237,.18));
+  border-color:rgba(37,99,235,.4);color:#fff!important;
+}
+body[data-theme="liquid-light"] .sideclock .t,
+body[data-theme="paper"] .sideclock .t{color:#0f172a!important}
+body[data-theme="liquid-light"] .labor .hist,
+body[data-theme="paper"] .labor .hist{color:#475569!important}
+
+/* ---------- Smooth Tab Transition ---------- */
+[id^="ws"] {
+  animation: wsTabIn .22s var(--ease) both;
+}
+@keyframes wsTabIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ---------- Sticky Table Headers ---------- */
+table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: rgba(15, 23, 42, .92);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+body[data-theme="liquid-light"] table thead th,
+body[data-theme="paper"] table thead th {
+  background: rgba(241, 245, 249, .96);
+  color: #0f172a;
+}
+
+/* ---------- Theme Popover & Save Status ---------- */
+.theme-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 120;
+  background: rgba(15, 23, 42, .96);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, .22);
+  border-radius: 14px;
+  padding: 8px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, .6);
+  min-width: 190px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+body[data-theme="liquid-light"] .theme-popover,
+body[data-theme="paper"] .theme-popover {
+  background: rgba(255, 255, 255, .96);
+  border-color: rgba(15, 23, 42, .18);
+  box-shadow: 0 16px 40px rgba(15, 23, 42, .15);
+}
+.theme-opt {
+  display: flex !important;
+  align-items: center;
+  gap: 10px;
+  width: 100% !important;
+  text-align: left;
+  padding: 8px 12px !important;
+  font-size: 13px !important;
+  border-radius: 10px !important;
+  border: 1px solid transparent !important;
+  background: transparent !important;
+  color: var(--txt) !important;
+  cursor: pointer;
+  transition: all .15s ease;
+}
+.theme-opt:hover {
+  background: rgba(255, 255, 255, .12) !important;
+  transform: translateX(2px);
+}
+body[data-theme="liquid-light"] .theme-opt:hover,
+body[data-theme="paper"] .theme-opt:hover {
+  background: rgba(15, 23, 42, .06) !important;
+}
+.theme-opt.on {
+  background: linear-gradient(135deg, rgba(59, 130, 246, .26), rgba(167, 139, 250, .2)) !important;
+  border-color: rgba(148, 163, 184, .35) !important;
+}
+.theme-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 8px rgba(0, 0, 0, .4);
+  border: 1.5px solid rgba(255, 255, 255, .3);
+}
+
+</style>
+<!-- ===== LIQUID GLASS ===== -->
+<style>
+/* ============================================================================
+   LIQUID GLASS — the real thing, not just blur.
+   1. rim light        : the card edges catch the light like glass
+   2. specular sheen   : a soft white pass across the top
+   3. refraction tint  : a colour cast that follows the page
+   4. grain            : breaks the banding, makes it feel physical
+   5. liquid backdrop  : slow moving colour so the glass has something to bend
+   ============================================================================ */
+
+@media (prefers-reduced-motion:reduce){
+  body::before,body::after,body .liqOrb{animation:none!important}
+}
+
+/* ---------- 4. the grain that makes glass feel physical ---------- */
+/* ---------- 1 + 2 + 3. the glass itself ---------- */
+.card,
+.sidebar,
+.uiBar,
+.stat,
+.hero,
+.theme-card,
+.wa-card{
+  position:relative;
+  backdrop-filter:blur(26px) saturate(180%);
+  -webkit-backdrop-filter:blur(26px) saturate(180%);
+  /* the rim: bright on the top-left, dark on the bottom-right */
+  box-shadow:
+    inset 0 1px 0 0 rgba(255,255,255,.34),
+    inset 1px 0 0 0 rgba(255,255,255,.16),
+    inset -1px 0 0 0 rgba(255,255,255,.1),
+    inset 0 -1px 0 0 rgba(255,255,255,.06),
+    inset 0 12px 28px -18px rgba(255,255,255,.5),   /* inner glow */
+    0 18px 46px -14px rgba(2,6,23,.62),
+    0 3px 10px -4px rgba(2,6,23,.4) !important;
+  overflow:hidden;
+}
+/* the specular sweep: one soft diagonal highlight, no hard edge */
+.card::before,
+.sidebar::before,
+.uiBar::before,
+.hero::before,
+.theme-card::before{
+  content:'';position:absolute;inset:0;pointer-events:none;border-radius:inherit;
+  background:linear-gradient(122deg,
+    rgba(255,255,255,.22) 0%,
+    rgba(255,255,255,.07) 26%,
+    rgba(255,255,255,0) 46%,
+    rgba(255,255,255,0) 62%,
+    rgba(255,255,255,.05) 100%);
+}
+/* the refraction tint pooled at the bottom */
+.card::after,
+.sidebar::after,
+.uiBar::after,
+.hero::after,
+.theme-card::after{
+  content:'';position:absolute;left:0;right:0;bottom:0;height:44%;
+  pointer-events:none;border-radius:inherit;
+  background:linear-gradient(to top,
+    rgba(96,165,250,.16) 0%,
+    rgba(167,139,250,.07) 42%,
+    rgba(255,255,255,0) 100%);
+}
+.card>*,.sidebar>*,.uiBar>*,.hero>*,.theme-card>*{position:relative;z-index:1}
+
+/* nested cards sit one layer further in, so drop the heaviest gloss */
+.card .card{backdrop-filter:blur(14px) saturate(140%);-webkit-backdrop-filter:blur(14px) saturate(140%)}
+.card .card::before{opacity:.5}
+.card .card::after{opacity:.45}
+
+/* ---------- buttons: little panes of glass ---------- */
+button.act,
+button.bigadd,
+.bigadd{
+  position:relative;overflow:hidden;
+  backdrop-filter:blur(14px) saturate(170%);
+  -webkit-backdrop-filter:blur(14px) saturate(170%);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.4),
+    inset 0 -1px 0 rgba(0,0,0,.22),
+    0 10px 28px -8px rgba(59,130,246,.6)!important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.4),
+    inset 0 -1px 0 rgba(0,0,0,.22),
+    0 10px 28px -8px rgba(59,130,246,.6) !important;
+}
+button.act::after,
+button.bigadd::after,
+.bigadd::after{
+  content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  background:linear-gradient(180deg, rgba(255,255,255,.3), rgba(255,255,255,0) 52%);
+}
+button.ghost,.ghost{
+  position:relative;overflow:hidden;
+  backdrop-filter:blur(14px) saturate(160%);
+  -webkit-backdrop-filter:blur(14px) saturate(160%);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.26),
+    inset 0 -1px 0 rgba(0,0,0,.18),
+    0 4px 14px -4px rgba(2,6,23,.35);
+}
+button.ghost::after,.ghost::after{
+  content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  background:linear-gradient(180deg, rgba(255,255,255,.16), rgba(255,255,255,0) 55%);
+}
+
+/* ---------- inputs: recessed glass ---------- */
+input,select,textarea{
+  backdrop-filter:blur(12px) saturate(140%);
+  -webkit-backdrop-filter:blur(12px) saturate(140%);
+  box-shadow:
+    inset 0 2px 5px rgba(2,6,23,.45),
+    inset 0 -1px 0 rgba(255,255,255,.1),
+    0 1px 0 rgba(255,255,255,.08);
+}
+input:focus,select:focus,textarea:focus{
+  box-shadow:
+    inset 0 2px 5px rgba(2,6,23,.3),
+    0 0 0 3px rgba(96,165,250,.22),
+    0 0 22px -6px rgba(96,165,250,.5)!important;
+}
+
+/* ---------- sidebar: one tall slab of glass ---------- */
+.sidebar{
+  backdrop-filter:blur(34px) saturate(190%)!important;
+  -webkit-backdrop-filter:blur(34px) saturate(190%)!important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.32),
+    inset 1px 0 0 rgba(255,255,255,.14),
+    0 24px 60px -18px rgba(2,6,23,.7)!important;
+}
+
+/* ---------- the Excel grid: glass frame, solid cells ---------- */
+.xl{
+  backdrop-filter:blur(18px) saturate(150%);
+  -webkit-backdrop-filter:blur(18px) saturate(150%);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.24),
+    inset 0 0 0 1px rgba(255,255,255,.1),
+    0 16px 40px -14px rgba(2,6,23,.6);
+}
+.xl td{
+  background:linear-gradient(180deg, rgba(255,255,255,.14), rgba(255,255,255,.05));
+}
+.xl thead th{
+  backdrop-filter:blur(12px);
+  -webkit-backdrop-filter:blur(12px);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.22);
+}
+
+/* ---------- badges / pills: frosted chips ---------- */
+.badge,.pill,.chip{
+  backdrop-filter:blur(10px) saturate(150%);
+  -webkit-backdrop-filter:blur(10px) saturate(150%);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.22);
+}
+
+/* ---------- light themes need a gentler rim ---------- */
+body[data-theme="liquid-light"] .card,
+body[data-theme="liquid-light"] .sidebar,
+body[data-theme="liquid-light"] .uiBar,
+body[data-theme="liquid-light"] .hero,
+body[data-theme="liquid-light"] .theme-card,
+body[data-theme="liquid-light"] .stat,
+body[data-theme="liquid-light"] .wa-card,
+body[data-theme="paper"] .card,
+body[data-theme="paper"] .sidebar,
+body[data-theme="paper"] .uiBar,
+body[data-theme="paper"] .hero,
+body[data-theme="paper"] .theme-card,
+body[data-theme="paper"] .stat,
+body[data-theme="paper"] .wa-card{
+  box-shadow:
+    inset 0 1px 0 0 rgba(255,255,255,.7),
+    inset 0 12px 26px -20px rgba(255,255,255,.9),
+    0 14px 36px -14px rgba(15,23,42,.24),
+    0 3px 10px -4px rgba(15,23,42,.14);
+}
+body[data-theme="liquid-light"] .card::before,
+body[data-theme="liquid-light"] .sidebar::before,
+body[data-theme="liquid-light"] .hero::before,
+body[data-theme="liquid-light"] .theme-card::before,
+body[data-theme="paper"] .card::before,
+body[data-theme="paper"] .sidebar::before,
+body[data-theme="paper"] .hero::before,
+body[data-theme="paper"] .theme-card::before{
+  background:linear-gradient(122deg, rgba(255,255,255,.7) 0%, rgba(255,255,255,.25) 28%, rgba(255,255,255,0) 48%);
+}
+body[data-theme="liquid-light"] .card::after,
+body[data-theme="liquid-light"] .hero::after,
+body[data-theme="liquid-light"] .theme-card::after,
+body[data-theme="paper"] .card::after,
+body[data-theme="paper"] .hero::after,
+body[data-theme="paper"] .theme-card::after{
+  background:linear-gradient(to top, rgba(59,130,246,.08) 0%, rgba(255,255,255,0) 55%);
+}
+</style>
+<!-- ===== PERFORMANCE ===== -->
+<style>
+/* ============================================================================
+   PERFORMANCE — same glass, a fraction of the cost.
+   ============================================================================ */
+
+/* the three orbs become one, much cheaper */
+body::before{
+  content:'';position:fixed;z-index:-2;pointer-events:none;
+  width:52vmax;height:52vmax;left:-10vmax;top:-12vmax;
+  background:radial-gradient(circle at 34% 34%, rgba(167,139,250,.55), transparent 62%);
+  filter:blur(34px);
+  animation:liqA 26s var(--ease) infinite alternate;
+}
+body::after{
+  content:'';position:fixed;z-index:-2;pointer-events:none;
+  width:48vmax;height:48vmax;right:-12vmax;bottom:-14vmax;
+  background:radial-gradient(circle at 66% 66%, rgba(34,211,238,.48), transparent 62%);
+  filter:blur(34px);
+  animation:liqB 32s var(--ease) infinite alternate;
+}
+@keyframes liqA{
+  0%  {transform:translate3d(0,0,0) scale(1)}
+  50% {transform:translate3d(6vmax,4vmax,0) scale(1.08)}
+  100%{transform:translate3d(-3vmax,6vmax,0) scale(.96)}
+}
+@keyframes liqB{
+  0%  {transform:translate3d(0,0,0) scale(1)}
+  50% {transform:translate3d(-5vmax,-3vmax,0) scale(1.1)}
+  100%{transform:translate3d(3vmax,-6vmax,0) scale(.94)}
+}
+/* the third orb is the most expensive thing on the page for almost no visual
+   gain, so it is switched off — the sheen and grain still sell the glass */
+body .liqOrb{display:none!important}
+
+/* grain: keep it, stop animating it (it is invisible anyway) */
+body.grainOn .grainLayer{animation:none!important}
+.grainLayer{opacity:.035!important}
+
+/* only the glass that is actually on screen keeps a backdrop-filter */
+.sidebar,.uiBar{
+  backdrop-filter:blur(26px) saturate(180%);
+  -webkit-backdrop-filter:blur(26px) saturate(180%);
+}
+/* nested cards do not need their own expensive backdrop */
+.card .card,.wa-card{
+  backdrop-filter:none!important;
+  -webkit-backdrop-filter:none!important;
+}
+/* a card that is folded away costs nothing */
+.card[data-collapsed="1"],
+.card[data-collapsed="1"] .card,
+[style*="display:none"] .card{
+  backdrop-filter:none!important;
+  -webkit-backdrop-filter:none!important;
+  box-shadow:none!important;
+}
+/* no blur at all while a menu / toast is dragging around */
+.themeFade,.themeFade *{
+  backdrop-filter:none!important;
+  -webkit-backdrop-filter:none!important;
+}
+
+/* stop the browser re-compositing things that have not changed */
+.act,.ghost,.eyeBtn,.card,.wa-card,.theme-card{
+  will-change:transform;
+}
+.liqOrb,.grainLayer{will-change:auto!important}
+
+/* the grid is the biggest surface on the page — keep it plain and fast */
+.xl,.xl th,.xl td{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+</style>
+
+<!-- ===== অনপেইড স্ট্যাট স্ট্রিপ ===== -->
+<style>
+.advStats{display:grid;grid-template-columns:repeat(auto-fit,minmax(196px,1fr));gap:10px;margin:12px 0 6px}
+.advStat{
+  display:flex;align-items:center;gap:11px;
+  padding:12px 14px;border-radius:17px;
+  border:1px solid rgba(255,255,255,.2);
+  background:linear-gradient(142deg,rgba(255,255,255,.15),rgba(255,255,255,.045));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.32),
+             inset 0 -14px 26px -20px rgba(0,0,0,.55),
+             0 10px 26px -14px rgba(0,0,0,.55);
+  transition:transform .28s var(--ease, ease),box-shadow .28s var(--ease, ease);
+}
+.advStat:hover{transform:translateY(-2px);box-shadow:inset 0 1px 0 rgba(255,255,255,.4),0 16px 34px -14px rgba(0,0,0,.6)}
+.advStat .ico{
+  width:38px;height:38px;flex:none;display:grid;place-items:center;
+  border-radius:13px;font-size:17px;line-height:1;
+  background:rgba(125,211,252,.16);border:1px solid rgba(125,211,252,.45);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.28);
+}
+.advStat .tx{min-width:0;flex:1}
+.advStat .k{display:block;font-size:10.5px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:#b9c6d6;opacity:.95;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.advStat .v{display:block;font-size:19px;font-weight:800;color:#f6f8ff;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.advStat.money .ico{background:rgba(74,222,128,.16);border-color:rgba(74,222,128,.5)}
+.advStat.money .v{color:#8ef0b4}
+.advStat.warn .ico{background:rgba(251,191,36,.15);border-color:rgba(251,191,36,.5)}
+.advStat.warn .v{color:#fcd97a}
+.advStat .v .u{font-size:11px;font-weight:700;opacity:.72;margin-left:3px}
+body[data-theme="paper"] .advStat{background:linear-gradient(142deg,rgba(255,255,255,.9),rgba(241,245,249,.75));border-color:rgba(15,23,42,.12)}
+body[data-theme="paper"] .advStat .k{color:#64748b}
+body[data-theme="paper"] .advStat .v{color:#0f172a}
+body[data-theme="paper"] .advStat.money .v{color:#15803d}
+body[data-theme="paper"] .advStat.warn .v{color:#b45309}
+</style>
+
+<!-- ===== লোক ও সাইট — রোস্টার প্যানেল ===== -->
+<style>
+.roster{
+  margin:12px 0 10px;padding:14px 16px 12px;border-radius:20px;
+  border:1px solid rgba(255,255,255,.2);
+  background:linear-gradient(150deg,rgba(255,255,255,.14),rgba(255,255,255,.04));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.3),
+             inset 0 -18px 30px -24px rgba(0,0,0,.6),
+             0 12px 30px -18px rgba(0,0,0,.55);
+}
+.roster-top{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px}
+.rost{
+  flex:1 1 118px;min-width:104px;display:flex;align-items:center;gap:10px;
+  padding:9px 12px;border-radius:15px;
+  border:1px solid rgba(255,255,255,.16);
+  background:rgba(255,255,255,.08);
+  transition:transform .26s var(--ease, ease),background .26s var(--ease, ease);
+}
+.rost:hover{transform:translateY(-2px);background:rgba(255,255,255,.15)}
+.rost .i{
+  width:34px;height:34px;flex:none;display:grid;place-items:center;border-radius:11px;
+  font-size:16px;line-height:1;background:rgba(125,211,252,.16);
+  border:1px solid rgba(125,211,252,.42);box-shadow:inset 0 1px 0 rgba(255,255,255,.28);
+}
+.rost .t{min-width:0}
+.rost .t b{display:block;font-size:19px;font-weight:800;color:#f6f8ff;line-height:1.15;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rost .t span{display:block;font-size:10.5px;font-weight:700;letter-spacing:.35px;
+  text-transform:uppercase;color:#b9c6d6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rost.on .i{background:rgba(74,222,128,.16);border-color:rgba(74,222,128,.5)}
+.rost.on .t b{color:#8ef0b4}
+.rost.off .i{background:rgba(251,191,36,.15);border-color:rgba(251,191,36,.5)}
+.rost.off .t b{color:#fcd97a}
+
+.roster-mid{
+  display:flex;align-items:center;gap:7px;font-size:10.5px;font-weight:700;
+  letter-spacing:.4px;text-transform:uppercase;color:#b9c6d6;margin:2px 0 9px;
+}
+.roster-mid::after{content:'';flex:1;height:1px;
+  background:linear-gradient(90deg,rgba(255,255,255,.28),transparent)}
+
+.rlist{display:flex;flex-direction:column;gap:7px}
+.rrow{
+  display:grid;grid-template-columns:minmax(96px,1.1fr) minmax(90px,2fr) auto;
+  align-items:center;gap:12px;padding:7px 11px;border-radius:13px;
+  border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);
+  transition:background .24s var(--ease, ease),transform .24s var(--ease, ease);
+}
+.rrow:hover{background:rgba(255,255,255,.11);transform:translateX(2px)}
+.rrow .nm{font-size:13px;font-weight:700;color:#eaf0ff;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+.rbar{height:9px;border-radius:99px;background:rgba(255,255,255,.12);
+  overflow:hidden;display:flex;box-shadow:inset 0 1px 2px rgba(0,0,0,.35)}
+.rbar i{display:block;height:100%;border-radius:99px;
+  background:linear-gradient(90deg,#34d399,#22d3ee);transition:width .7s var(--ease, ease)}
+.rbar i.offpart{background:linear-gradient(90deg,#fbbf24,#f59e0b)}
+.rmeta{font-size:12px;color:#c3cfe0;white-space:nowrap;text-align:right;
+  display:flex;gap:7px;align-items:center}
+.rmeta b{color:#8ef0b4;font-weight:800}
+.rmeta b.off{color:#fcd97a}
+.rnone{font-size:12.5px;color:#a9b6c8;padding:8px 2px}
+
+body[data-theme="paper"] .roster{background:linear-gradient(150deg,rgba(255,255,255,.92),rgba(241,245,249,.8));border-color:rgba(15,23,42,.12)}
+body[data-theme="paper"] .rost{background:rgba(255,255,255,.75);border-color:rgba(15,23,42,.1)}
+body[data-theme="paper"] .rost .t b{color:#0f172a}
+body[data-theme="paper"] .rost .t span,
+body[data-theme="paper"] .roster-mid{color:#64748b}
+body[data-theme="paper"] .rost.on .t b{color:#15803d}
+body[data-theme="paper"] .rost.off .t b{color:#b45309}
+body[data-theme="paper"] .rrow{background:rgba(255,255,255,.7);border-color:rgba(15,23,42,.08)}
+body[data-theme="paper"] .rrow .nm{color:#1e293b}
+body[data-theme="paper"] .rmeta{color:#475569}
+body[data-theme="paper"] .rmeta b{color:#15803d}
+body[data-theme="paper"] .rmeta b.off{color:#b45309}
+</style>
+<!-- ===== MOTION ===== -->
+<style>
+/* ============================================================================
+   MOTION — every control gets a reaction, and it never gets in the way.
+   Everything here is guarded by prefers-reduced-motion at the bottom.
+   ============================================================================ */
+
+/* ---------- 1. buttons: lift on hover, sink on press, ripple on click ---------- */
+.act,.ghost,.eyeBtn,.bigadd,.bigadd,#qat .qi,#wsBtnTheme,
+.uiBar button,.theme-card,.seg button,button{
+  transition:transform .16s var(--ease),box-shadow .2s var(--ease),
+             background .22s var(--ease),border-color .2s var(--ease),
+             color .2s var(--ease),filter .2s var(--ease);
+  -webkit-tap-highlight-color:transparent;
+}
+.act:hover,.bigadd:hover,.bigadd:hover{
+  transform:translateY(-2px);
+  filter:brightness(1.12);
+}
+.act:active,.bigadd:active{
+  transform:translateY(1px) scale(.985);
+  filter:brightness(.95);
+}
+.ghost:hover,.eyeBtn:hover,#qat .qi:hover,.seg button:hover{
+  transform:translateY(-1px);
+}
+.ghost:active,.eyeBtn:active,.seg button:active{
+  transform:translateY(1px) scale(.97);
+}
+.uiBar button:hover{transform:translateY(-1px)}
+.uiBar button:active{transform:translateY(1px) scale(.96)}
+button:disabled{transform:none!important;filter:none!important}
+
+/* ripple */
+.rippleHost{position:relative;overflow:hidden;isolation:isolate}
+.rippleHost .ripple{
+  position:absolute;border-radius:50%;pointer-events:none;
+  /* sized by JS to cover the button; the keyframes just fade it in/out */
+  background:radial-gradient(circle,rgba(255,255,255,.55),rgba(255,255,255,0) 70%);
+  transform:scale(0);opacity:.9;
+  animation:rippleOut .62s var(--ease) forwards;
+}
+@keyframes rippleOut{
+  0%  {transform:scale(.15);opacity:.85}
+  60% {opacity:.32}
+  100%{transform:scale(1);opacity:0}
+}
+
+/* ---------- 2. cards enter one after another ---------- */
+@keyframes cardIn{
+  from{opacity:0;transform:translateY(16px) scale(.985)}
+  to  {opacity:1;transform:none}
+}
+.card,.wa-card,.theme-card{
+  animation:cardIn .44s var(--ease) both;
+  animation-delay:calc(var(--i,0) * 55ms);
+}
+/* the tab that is showing gets the animation; the hidden ones do not */
+[style*="display:none"] .card{animation:none!important}
+[style*="display: none"] .card{animation:none!important}
+
+/* ---------- 3. table rows wash in ---------- */
+@keyframes rowIn{
+  from{opacity:0;transform:translateX(-10px)}
+  to  {opacity:1;transform:none}
+}
+#tbody tr,#pvtbody tr,#dgrid tbody tr,.wa-card,.labor{
+  animation:rowIn .34s var(--ease) both;
+  animation-delay:calc(var(--r,var(--i,0)) * 26ms);
+}
+
+/* ---------- 4. status / toast messages slide up ---------- */
+@keyframes msgIn{
+  0%  {opacity:0;transform:translateY(10px) scale(.97)}
+  60% {transform:translateY(-1px) scale(1.005)}
+  100%{opacity:1;transform:none}
+}
+.status,#wsSetStatus,.status.ok,.status.err{
+  animation:msgIn .34s var(--ease) both;
+}
+.status:empty{animation:none}
+
+/* ---------- 5. numbers count up ---------- */
+@keyframes popIn{
+  0%  {opacity:0;transform:scale(.6)}
+  70% {transform:scale(1.12)}
+  100%{opacity:1;transform:scale(1)}
+}
+.stat b,.tile b,.hero .big,.dues b{
+  animation:popIn .5s var(--ease) both;
+  animation-delay:calc(var(--i,0) * 70ms);
+  display:inline-block;
+}
+
+/* ---------- 6. nav active bar slides in ---------- */
+@keyframes navSlide{
+  from{transform:translateX(-8px);opacity:.4}
+  to  {transform:none;opacity:1}
+}
+.sidebar nav button.on,aside.nav button.on,nav button.on{
+  animation:navSlide .26s var(--ease) both;
+}
+
+/* ---------- 7. theme switch dissolves the whole page ---------- */
+body.themeFade::after{
+  content:'';position:fixed;inset:0;z-index:9999;pointer-events:none;
+  background:radial-gradient(circle at 50% 50%, rgba(255,255,255,.28), rgba(255,255,255,0) 60%);
+  animation:themeFlash .5s var(--ease) forwards;
+}
+@keyframes themeFlash{
+  from{opacity:0}
+  40% {opacity:1}
+  to  {opacity:0}
+}
+
+/* ---------- 8. the eye button blinks when a card folds ---------- */
+@keyframes foldBlink{
+  0%  {transform:scale(1)}
+  45% {transform:scale(.82) rotate(-8deg)}
+  100%{transform:scale(1)}
+}
+.eyeBtn:active{animation:foldBlink .3s var(--ease)}
+.card[data-collapsed="1"]>.card-body{animation:none}
+
+/* ---------- 9. the floating orbs come alive ---------- */
+body .liqOrb{transition:transform 1.4s var(--ease),opacity .6s var(--ease)}
+body.grainOn .grainLayer{animation:grainDrift 9s steps(6) infinite}
+@keyframes grainDrift{
+  0%  {transform:translate(0,0)}
+  25% {transform:translate(-6px,4px)}
+  50% {transform:translate(4px,-6px)}
+  75% {transform:translate(-4px,-4px)}
+  100%{transform:translate(0,0)}
+}
+
+/* ---------- 10. a soft aurora that follows the theme ---------- */
+body::after{
+  transition:background 1.2s var(--ease),opacity .8s var(--ease);
+}
+
+/* ---------- 11. hover lift for anything that looks clickable ---------- */
+.tile,.tiles .tile,.hero,.dues,.pill,.chip,.badge{
+  transition:transform .18s var(--ease),box-shadow .22s var(--ease),
+             background .22s var(--ease),border-color .22s var(--ease);
+}
+.tile:hover,.tiles .tile:hover,.hero:hover{
+  transform:translateY(-3px);
+  box-shadow:var(--sh3),inset 0 1px 0 rgba(255,255,255,.36)!important;
+}
+
+/* ---------- 12. inputs wake up ---------- */
+input,select,textarea{
+  transition:border-color .2s var(--ease),box-shadow .22s var(--ease),
+             background .22s var(--ease),transform .16s var(--ease);
+}
+input:hover:not(:focus),select:hover:not(:focus),textarea:hover:not(:focus){
+  border-color:rgba(255,255,255,.26)!important;
+  transform:translateY(-1px);
+}
+
+/* ---------- 13. badges notice when they change ---------- */
+@keyframes badgePulse{
+  0%  {transform:scale(1)}
+  40% {transform:scale(1.16);filter:brightness(1.35)}
+  100%{transform:scale(1)}
+}
+.badge,.tile b,.stat b{will-change:transform}
+
+/* ---------- 14. scroll reveal (progressive, one observer) ---------- */
+.riseIn{opacity:0;transform:translateY(22px)}
+.riseIn.revealed{animation:cardIn .5s var(--ease) both}
+
+/* ---------- 15. the theme flash + fold blink in light themes ---------- */
+body[data-theme="liquid-light"].themeFade::after,
+body[data-theme="paper"].themeFade::after{
+  background:radial-gradient(circle at 50% 50%, rgba(255,255,255,.75), rgba(255,255,255,0) 65%);
+}
+
+/* ---------- OFF switch for anyone who prefers stillness ---------- */
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{
+    animation-duration:.01ms!important;
+    animation-iteration-count:1!important;
+    transition-duration:.01ms!important;
+  }
+  .rippleHost .ripple{display:none!important}
+}
+</style>
+</head>
+<body>
+<div class="liqOrb"></div><div class="grainLayer"></div>
+<div class="layout">
+<aside class="sidebar">
+<div class="brand"><div class="logo"><svg width="26" height="26" viewBox="0 0 24 24" fill="none"><rect x="3" y="7" width="18" height="13" rx="2.5" fill="rgba(8,47,73,.55)" stroke="#082f49" stroke-width="1.4"/><rect x="6" y="3.5" width="2.4" height="5" rx="1" fill="#082f49"/><rect x="15.6" y="3.5" width="2.4" height="5" rx="1" fill="#082f49"/><path d="M7 13.5h3l1.2-2.4 1.6 4.4L14 13.5h3" stroke="#4ade80" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div>Company<br>Workspace</div></div>
+<div class="sideclock"><div class="t" id="dashClock">--:--:--</div><div class="d" id="dashDate">…</div></div>
+<nav>
+<button id="w0" class="on" onclick="wtab(0)">🏠 ড্যাশবোর্ড</button>
+<button id="w1" onclick="wtab(1)">👥 Employee</button>
+<button id="w2" onclick="wtab(2)">💰 Advance/Salary</button>
+<button id="w6" onclick="wtab(6)">👷 লোক ও সাইট</button>
+<button id="w7" onclick="wtab(7)">📱 WhatsApp</button>
+<button id="w8" onclick="wtab(8)">📊 মাসিক প্রফিট</button>
+<button id="w3" onclick="wtab(3)">🧾 Invoice/Payment</button>
+<button id="w4" onclick="wtab(4)">📢 Notice/Task</button>
+<button id="w5" onclick="wtab(5)">📧 Mail</button>
+<button id="w9" onclick="wtab(9)">⚙️ সেটিংস</button>
+<button class="ext" onclick="location.href='/'">⏱️ Time Keeper</button>
+</nav>
+<div class="sidefoot">🔒 Local only • Time Keeper থেকে আলাদা</div>
+</aside>
+<main>
+<header><div><h1>Company Workspace</h1><p class="sub">কোম্পানির সব কাজ — এক জায়গায়</p></div>
+<button class="palBtn" onclick="PAL.open()" title="সব ট্যাব, অ্যাকশন ও ফিচার খুঁজে পান — Ctrl+K">🔍 <span>খুঁজুন</span> <kbd>Ctrl K</kbd></button>
+<button id="uniSearchBtn" class="ghost" style="padding:10px 18px;font-size:14px;font-weight:800;white-space:nowrap" onclick="showUnifiedAdd('search')">🔍 Search</button>
+<button id="uniAddBtn" class="ghost primary" style="padding:10px 18px;font-size:14px;font-weight:800;white-space:nowrap" onclick="showUnifiedAdd('add')">➕ Add</button></header>
+
+<div id="ws0">
+<div class="hero" id="dashHero"><div class="k">📊 কোম্পানির অবস্থা</div><div class="big">…</div><div class="sub2">হিসাব লোড হচ্ছে…</div></div>
+<div class="tiles" id="dashTiles"></div>
+<div class="card"><h2>⏳ বকেয়া ও ডিউ</h2><div class="dues" id="dashDues"><div class="hint">লোড হচ্ছে…</div></div></div>
+<div class="card" id="cycCard"><h2>🔄 মাসিক চক্র — টিমলাইন</h2><div class="hint">সাইটের টাইমশিট → আপনার চেক → ক্লিয়ার → প্রোভাইডারের ইনভোয়়েস → ডাকা সাইট M+1-15 → বিল M+2-15। টাক ক্লিক চাপে।</div><div id="cycBox"><div class="hint">লোড হচ্ছে।</div></div></div><div class="card"><h2>⚡ দ্রুত কাজ</h2>
+<div style="display:flex;gap:8px;flex-wrap:wrap">
+<button class="ghost" onclick="showUnifiedAdd('search')">🔍 লোক খুঁজুন</button>
+<button class="ghost primary" onclick="showUnifiedAdd('add')">➕ নতুন লোক/প্রোভাইডার</button>
+<button class="ghost" onclick="wtab(8)">📊 প্রফিট দেখুন</button>
+<button class="ghost" onclick="wtab(7)">📱 WhatsApp</button>
+<button class="ghost" onclick="wtab(2)">💰 এডভান্স</button>
+</div></div>
+</div>
+<div id="ws1" style="display:none">
+<div class="card">
+<h2>👥 Employee — <span class="badge" id="empCnt"></span></h2>
+<div><input id="empSearch" placeholder="🔍 নাম খুঁজুন" oninput="renderEmp()"></div>
+<div id="empList" style="margin-top:10px"></div>
+</div>
+<div class="card" id="empDetail" style="display:none">
+<h2 id="empName"></h2>
+<div id="empFiles"></div>
+</div>
+</div>
+
+<div id="ws2" style="display:none"><div class="card">
+<h2 class="advhead">💰 Advance/Salary — <span class="badge" id="advGrand"></span>
+<span class="badge" style="background:rgba(74,222,128,.25);border-color:rgba(74,222,128,.55)" title="বট কাজ করে এই কপির উপরে। আপনার মাস্টার ফাইল (Advance sheet.xlsx) বট কখনো ছোঁয় না।">📄 বট কপি</span>
+<span class="fwrap"><button class="ghost fbtn" id="advFilterBtn" onclick="advFilterToggle()">💰 অনপেইড ▾</button>
+<div class="fmenu" id="advFilterMenu">
+<button data-f="unpaid" onclick="setAdvFilter('unpaid')">💰 অনপেইড (বাকি)</button>
+<button data-f="paid" onclick="setAdvFilter('paid')">✅ পেইড (ক্লিয়ার)</button>
+<button data-f="all" onclick="setAdvFilter('all')">📋 সব এন্ট্রি</button>
+</div></span></h2>
+<div class="advStats" id="advFilterInfo"></div>
+<div class="hint">📂 বট যে ফাইলে কাজ করে: <b>Advance sheet বট.xlsx</b> — আপনার <b>Advance sheet.xlsx</b> মাস্টার ফাইলে বট কোনো লেখা করে না।</div>
+<div class="bigadd">
+<div style="flex:1;min-width:150px"><label class="hint">প্রোভাইডার</label><select id="naProv" onchange="naWorker()"><option value="">— বেছে নিন —</option></select></div>
+<div style="flex:1;min-width:150px"><label class="hint">লোক / লক</label><select id="naWorker"><option value="">— আগে প্রোভাইডার বাছুন —</option></select></div>
+<div style="flex:1;min-width:110px"><label class="hint">টাকা (AED)</label><input id="naAmt" type="number" min="1" placeholder="AED"></div>
+<div style="flex:1;min-width:130px"><label class="hint">তারিখ (খালি=আজ)</label><input id="naDate" placeholder="তারিখ"></div>
+<div style="flex:1;min-width:140px"><label class="hint">কারণ</label><input id="naReason" placeholder="কারণ"></div>
+<div><label class="hint">স্ট্যাটাস</label><select id="naStatus"><option value="">বাকি</option><option value="paid">Paid (ক্লিয়ার)</option></select></div>
+<div><button class="ghost" style="margin-top:14px;padding:10px 16px" onclick="advNewAdd()">➕ নতুন অ্যাডভাঞ্চ দিন</button></div>
+<div class="status" id="naMsg" style="flex-basis:100%"></div>
+</div>
+<div><input id="advSearch" placeholder="🔍 নাম খুঁজুন" oninput="renderAdv()"></div>
+<div id="advList" style="margin-top:10px"></div>
+</div></div>
+<div id="ws6" style="display:none"><div class="card">
+<h2>👷 লোক ও সাইট
+<span class="badge" style="background:rgba(74,222,128,.25);border-color:rgba(74,222,128,.55)">📄 বট কপি</span>
+<button class="ghost" style="margin-left:10px;padding:5px 12px" onclick="laborRefreshFromMaster()" title="আপনার মাস্টার এক্সেল থেকে বট কপি নতুন করে নিন">🔄 মাস্টার থেকে নাও</button></h2>
+<div class="hint">📂 উৎস: <b>working in company Manpower 2 বট.xlsx</b> — আপনার মাস্টার ফাইলে বট কোনো লেখা করে না। ডিউটির ইতিহাস Excel-এর লাল ত্রিভূজ (কমেন্ট) থেকে আসে।</div>
+<div class="roster" id="labRoster"></div>
+<div class="bigadd">
+<button class="ghost" style="margin:0;padding:8px 14px" onclick="labAdd()">➕ লোক যোগ করুন / নতুন প্রোভাইডার</button>
+<span class="chip mute" style="margin:0">✏️ Edit</span>
+<span class="chip mute" style="margin:0">💬 কমেন্ট</span>
+<span class="chip mute" style="margin:0">🗑️ মুছুন</span>
+<div class="status" id="labMsg" style="flex-basis:100%"></div>
+</div>
+<div id="labAddBox" style="display:none">
+<div class="bigadd" style="border-style:solid">
+<div style="flex:1;min-width:150px"><label class="hint">প্রোভাইডার</label><select id="laProv"></select></div>
+<div style="flex:1;min-width:130px"><label class="hint">লোকের নাম *</label><input id="laName" placeholder="নাম লিখুন"></div>
+<div style="flex:1;min-width:130px"><label class="hint">ডিউটি শুরু</label><input id="laStart" placeholder="YYYY-MM-DD"></div>
+<div style="flex:1;min-width:100px"><label class="hint">রেট (AED/ঘণ্টা)</label><input id="laRate" placeholder="7"></div>
+<div style="flex:1;min-width:150px"><label class="hint">সাইট</label><input id="laSite" placeholder="যেমন: Al Maraj"></div>
+<div><button class="ghost" style="margin-top:14px;padding:10px 16px" onclick="labAddRow()">➕ যোগ করুন</button></div>
+</div></div>
+<div style="margin:10px 0 4px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+<input id="labSearch" placeholder="🔍 নাম / সাইট / প্রোভাইডার খুঁজুন" oninput="renderLabor()" style="flex:1;min-width:200px">
+<button class="ghost" style="margin:0;padding:7px 13px" onclick="window.open('/api/labor-download','_blank')" title="বটের ফাইলটা নামিয়ে এক্সেলে খুলুন">⬇️ বটের ফাইল খুলুন</button>
+</div>
+<div class="hint" style="margin-top:2px">⬇️ বাটনে বটের ফাইলটা নামিয়ে খুলবে — <b>আগে এক্সেল বন্ধ</b> করে নেবেন।</div>
+<div id="labList" style="margin-top:10px"></div>
+</div></div>
+<div id="ws7" style="display:none"><div class="card">
+<h2>📱 WhatsApp — <span class="badge" id="waSum">0 নম্বর সেট</span></h2>
+<div class="hint">ফ্রি পদ্ধতি: WhatsApp খুলবে, বার্তা আগেই লেখা থাকবে — শুধু <b>Send</b> চাপতে হবে। কোনো অ্যাকাউন্ট বা খরচ লাগে না। নম্বর অ্যাপের ভেতরেই সেভ থাকে (ফাইল: <b>labor_phones.json</b>)।</div>
+
+<div class="wa-card"><h3>① ফোন নম্বর সেবা</h3>
+<div class="wa-row" style="margin-bottom:8px">
+<div><select id="waBulkProv" onchange="waBulkRender()"><option value="">— সব —</option></select></div>
+<div style="flex:0 0 auto"><button class="ghost" onclick="waBulkPaste()">📋 অনেক নম্বর একসাথে বসান</button></div>
+</div>
+<div class="wa-prev" id="waBulkBox" style="display:none"></div>
+<div id="waPhoneList"></div>
+</div>
+
+<div class="wa-card"><h3>② প্রত্যেক লোকের হিসাব পাঠান</h3>
+<div class="wa-row"><div><select id="waAccPerson"></select></div>
+<div style="flex:0 0 auto"><button class="ghost" onclick="waAccPreview()">👁️ দেখুন</button></div>
+<div style="flex:0 0 auto"><button class="ghost" onclick="waAccSend()">💬 পাঠান</button></div></div>
+<div class="wa-prev" id="waAccPrev"></div>
+</div>
+
+<div class="wa-card"><h3>③ ডিউটি ও সাইট তালিকা</h3>
+<div class="wa-row"><div><select id="waDutyProv"><option value="">— সব প্রোভাইডার —</option></select></div>
+<div style="flex:0 0 auto"><button class="ghost" onclick="waDutyPreview()">👁️ দেখুন</button></div>
+<div style="flex:0 0 auto"><button class="ghost" onclick="waDutySend()">💬 পাঠান</button></div></div>
+<div class="wa-prev" id="waDutyPrev"></div>
+</div>
+
+<div class="wa-card"><h3>④ দৈনিক ডিউটি রিমাইন্ডার</h3>
+<div class="wa-row"><div><select id="waDayProv"><option value="">— সব প্রোভাইডার —</option></select></div>
+<div style="flex:0 0 auto"><button class="ghost" onclick="waDayPreview()">👁️ দেখুন</button></div>
+<div style="flex:0 0 auto"><button class="ghost" onclick="waDaySend()">💬 পাঠান</button></div></div>
+<div class="wa-prev" id="waDayPrev"></div>
+<div class="hint" id="waDayList" style="margin-top:8px"></div>
+</div>
+
+<div class="wa-card"><h3>⑤ যেকোনো বার্তা লিখে পাঠান</h3>
+<textarea id="waMsgText" rows="4" style="width:100%;padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.12);color:var(--txt);font-family:inherit" placeholder="যে বার্তা পাঠাতে চান লিখুন..."></textarea>
+<div class="wa-row" style="margin-top:8px">
+<div><select id="waMsgTo"><option value="">— কার কাছে —</option></select></div>
+<div style="flex:0 0 auto"><button class="ghost" onclick="waMsgSend()">💬 পাঠান</button></div>
+</div>
+<div class="hint" style="margin-top:8px">প্রতিটি মেসেজ WhatsApp-এ খুলে যাবে — শুধু Send চাপলেই চলে যাবে। অটো-পাঠানোর জন্য আলাদা অ্যাপ দরকার।</div>
+<div class="status" id="waMsg"></div>
+</div>
+</div></div>
+<div id="ws8" style="display:none"><div class="card">
+<h2>📊 মাসিক প্রোফিট — <span class="badge" id="pfSum">—</span></h2>
+<div class="hint">ঘণ্টা আসে <b>Total T</b> ফাইল থেকে • সাইট রেট বসালে ইনকাম হিসাব হয় (মালিক থেকে জেনে বসান) • রুম/গ্যাস খরচ নিচে লিখুন। <b>প্রফিট = ইনকাম − প্রোভাইডার খরচ − অন্য খরচ</b>।</div>
+<div id="pfNoRate" style="display:none;margin-top:8px;padding:10px 12px;border-radius:12px;background:rgba(251,191,36,.14);border:1px solid rgba(251,191,36,.45);color:#fde68a;font-weight:600">⚠️ সাইট রেট বসানো নেই — প্রফিট ভুল দেখাচ্ছে। নিচের <b>💰 ইনকাম</b> কার্ডে প্রতি লোকের <b>সাইট রেট/hr</b> বসান।</div>
+<div class="wa-row" style="margin-top:10px">
+<div><label>মাস</label><input id="pfMonth" type="month"></div>
+<div style="flex:2;min-width:220px"><label>Total T ফাইল</label><select id="pfFile" onchange="loadProfit()"></select></div>
+<div style="flex:0 0 auto;align-self:end"><button class="ghost primary" onclick="loadProfit()">🔄 হিসাব দেখুন</button></div>
+</div>
+<div id="pfCards" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px"></div>
+</div>
+<div class="card"><div class="wa-card"><h3>💰 ইনকাম — সাইট থেকে পাই (কোনো লোকের কত পাই)</h3>
+<div id="pfIncome"></div>
+<div class="hint">প্রতি লোকের সারিতে ওর সাইট রেট লিখুন — সেভ হয়ে থাকে।<br><b>বিষয়:</b> শিহাবের সাইট থেকে পাই <b>12</b> টাকা/ঘণ্টা আর প্রোভাইডারকে দেই <b>8</b> → প্রোফিট = (12−8) × ঘণ্টা = <b>4</b> টাকা/ঘণ্টা।<br>কোনো ফেরোতে ফরকার প্রোভাইডারকে দিয়েছেন — পরিবর্তিত হওয়ার সাথে সাথে ফিরে নিয়ে আসে।</div>
+</div>
+<div class="wa-card"><h3>💸 খরচ — প্রোভাইডারকে দেই</h3><div id="pfCost"></div></div>
+<div class="wa-card"><h3>🗓️ বিল হিস্ট্রি — কে কবে দিল/পেল (সেপ্টেম্বর ২০২৬ থেকে)</h3><div id="pfHist"></div></div>
+<div class="wa-card"><h3>🧾 অন্য খরচ (রুম/গ্যাস/…)</h3>
+<div id="pfExp"></div>
+<div class="wa-row" style="margin-top:8px">
+<div style="flex:2;min-width:160px"><input id="pfExpLabel" placeholder="খরচের নাম (যেমন: রুম ভাড়া)"></div>
+<div style="flex:1;min-width:110px"><input id="pfExpAmt" type="number" step="0.5" placeholder="টাকা"></div>
+<div style="flex:0 0 auto"><button class="ghost" onclick="pfAddExp()">➕ খরচ যোগ</button></div>
+<div style="flex:0 0 auto"><button class="ghost" onclick="pfQuickRoom()">🏠 রুম ভাড়া ১০০০ যোগ</button></div>
+</div>
+<div class="status" id="pfMsg"></div>
+</div></div></div>
+<div id="ws3" style="display:none"><div class="card">
+<h2>🧾 Invoice/Payment</h2>
+<div class="hint">কোম্পানি থেকে পেমেন্ট এলো/গেলোর হিসাব। সব এন্ট্রি জমা থাকে ও অটো-ব্যাকআপ নেয়।</div>
+<div class="advStats" id="invStats"></div>
+<div class="bigadd">
+<div style="flex:1;min-width:120px"><label class="hint">টাকা (AED)</label><input id="inv_amt" type="number" min="1" placeholder="যেমন 5000"></div>
+<div style="flex:1;min-width:130px"><label class="hint">তারিখ</label><input id="inv_date" placeholder="খালি=আজ"></div>
+<div style="flex:0 0 150px"><label class="hint">দিক</label><select id="inv_dir"><option value="in">📥 ইন (এলো)</option><option value="out">📤 আউট (গেলো)</option></select></div>
+<div style="flex:2;min-width:200px"><label class="hint">বিবরণ</label><input id="inv_desc" placeholder="কারণ/নোট (ঐচ্ছিক — ৫০০ অক্ষর)"></div>
+<div style="flex:0 0 auto"><button class="ghost" onclick="invAdd()">➕ যোগ করুন</button></div>
+</div>
+<div class="status" id="invMsg"></div>
+<div id="invList"></div>
+</div>
+<div class="card" style="margin-top:14px">
+<h2>🧾 ① পেমেন্ট স্টেটমেন্ট (প্রোভাইডারের জন্য)</h2>
+<div class="hint">Data Sheet থেকে অটো। টাইম শিটের সাথে প্রোভাইডারকে দেওয়ার কাগজ। <b>প্রিভিউতে Unit Price, GAS, ADVANCE এডিট করা যায় — সঙ্গে সঙ্গে TOTAL/NET/In words হিসাব বদলায়।</b> হালনাগাদ করে [💾 সেভ] চাপলে months\...\statements\ ফোল্ডারে PDF সেভ হবে।</div>
+<div class="bigadd">
+<div style="flex:2;min-width:180px"><label class="hint">প্রোভাইডার</label><select id="igen_prov"></select></div>
+<div style="flex:1;min-width:110px"><label class="hint">মাস</label><select id="igen_month">
+<option value="1">JANUARY</option><option value="2">FEBRUARY</option><option value="3">MARCH</option>
+<option value="4">APRIL</option><option value="5">MAY</option><option value="6">JUNE</option>
+<option value="7">JULY</option><option value="8">AUGUST</option><option value="9">SEPTEMBER</option>
+<option value="10">OCTOBER</option><option value="11">NOVEMBER</option><option value="12">DECEMBER</option>
+</select></div>
+<div style="flex:1;min-width:150px"><label class="hint">Pay To (এডিট করা যাবে)</label><input id="igen_payto" placeholder="SHOMLUJ MIAH"></div>
+<div style="flex:1;min-width:140px"><label class="hint">ঠিকানা</label><input id="igen_payaddr" placeholder="AJMAN, UAE"></div>
+<div style="flex:0 0 auto;align-self:flex-end"><button class="ghost" onclick="igenPreview()">👁️ প্রিভিউ</button></div>
+</div>
+<div class="status" id="igenMsg"></div>
+<div id="igenPreviewWrap" style="display:none">
+<div style="margin:8px 0;text-align:right;display:flex;gap:8px;justify-content:flex-end">
+    <button class="ghost" onclick="igenSave()">💾 ফোল্ডারে PDF সেভ করুন</button>
+    <button class="ghost" onclick="igenPrint()">🖨️ প্রিন্ট / PDF</button>
+</div>
+<div id="igenPaper"></div>
+</div>
+</div>
+
+<div class="card" style="margin-top:14px">
+<h2>🏢 ② কোম্পানি ইনভয়েস (সাইটের ক্লায়েন্ট কোম্পানির জন্য)</h2>
+<div class="hint">যে কোম্পানিতে লোক সাপ্লাই করেছেন — ওদের বিল আনার ইনভয়েস। <b>একই Data Sheet (একই লোক, একই ঘণ্টা), কিন্তু ক্লায়েন্টের আলাদা/বেশি Unit Price। ADVANCE ও GAS থাকে না — শুধু ঘণ্টা × রেট।</b> প্রতি সাইটের ক্লায়েন্টের নাম এখানে সেট করুন।</div>
+<div class="bigadd">
+<div style="flex:2;min-width:170px"><label class="hint">সাইট / প্রোভাইডার</label><select id="cinv_prov" onchange="cinvFillCfg()"></select></div>
+<div style="flex:1;min-width:110px"><label class="hint">মাস</label><select id="cinv_month">
+<option value="1">JANUARY</option><option value="2">FEBRUARY</option><option value="3">MARCH</option>
+<option value="4">APRIL</option><option value="5">MAY</option><option value="6">JUNE</option>
+<option value="7">JULY</option><option value="8">AUGUST</option><option value="9">SEPTEMBER</option>
+<option value="10">OCTOBER</option><option value="11">NOVEMBER</option><option value="12">DECEMBER</option>
+</select></div>
+</div>
+<div class="bigadd" style="margin-top:6px">
+<div style="flex:2;min-width:180px"><label class="hint">ক্লায়েন্টের নাম (কোম্পানি)</label><input id="cinv_client" placeholder="যেমন: SHOMLUJ MIAH"></div>
+<div style="flex:2;min-width:150px"><label class="hint">ঠিকানা</label><input id="cinv_addr" placeholder="যেমন: AJMAN, UAE"></div>
+<div style="flex:1;min-width:120px"><label class="hint">ডিফল্ট Unit Price</label><input id="cinv_rate" type="number" step="0.25" placeholder="যেমন 8"></div>
+<div style="flex:0 0 auto"><button class="ghost" onclick="cinvCfgSave()">💾 ক্লায়েন্ট সেভ</button></div>
+<div style="flex:0 0 auto"><button class="ghost" onclick="cinvPreview()">👁️ প্রিভিউ</button></div>
+</div>
+<div class="status" id="cinvMsg"></div>
+<div class="hint" style="margin-top:6px">💡 নাম/ঠিকানা/রেট একবার সেভ করলেই পরের মাসেও থাকবে। প্রিভিউতে Unit Price বদলে [💾 সেভ] চাপলে months\...\invoice\ ফোল্ডারে PDF সেভ হবে। দুই কার্ডই একই প্রিভিউ বক্স ব্যবহার করে।</div>
+</div>
+</div>
+<div id="ws4" style="display:none"><div class="card"><h2>📢 Notice/Task</h2><div class="hint">পরের ধাপে বানানো হবে — ডিউটি, ঘোষণা।</div></div></div>
+<div id="ws5" style="display:none"><div class="card"><h2>📧 Mail</h2><div class="hint">পরের ধাপে বানানো হবে — Total T মেইলে পাঠানো।</div></div></div>
+
+
+<div id="ws9" style="display:none">
+<div class="card" id="wsSetCard">
+<h2 id="wsSetTitle">⚙️ সেটিংস — ভাষা, থিম ও কার্ড</h2>
+<div class="hint">এখান থেকেই পুরো ওয়ার্কস্পেসের ভাষা, থিম আর কার্ড লুকানো বদলানো যাবে। পছন্দ মনে থাকবে — পরেরবার খুললেই একই থাকবে।</div>
+
+<div style="margin:14px 0 4px" class="grpTitle" id="wsSetLangT">🌐 ভাষা / Language</div>
+<div class="seg" style="margin-bottom:12px">
+<button id="wsSetBn" type="button" onclick="wsSetLang('bn')">বাংলা</button>
+<button id="wsSetEn" type="button" onclick="wsSetLang('en')">English</button>
+</div>
+<div class="hint" id="wsSetLangHint">উপরের বারের বাটন আর এই বাটন একই কাজ করে।</div>
+
+<div class="grpTitle" id="wsSetThemeT">🎨 থিম / Theme</div>
+<div class="theme-grid" id="wsThemeGrid"></div>
+
+<div class="grpTitle" id="wsSetCardT">👁️ কার্ড লুকান / দেখান</div>
+<div class="wa-row">
+<div><button class="ghost" style="width:100%" onclick="WUI.showAll()">সব দেখাও</button></div>
+<div><button class="ghost" style="width:100%" onclick="WUI.hideAll()">সব লুকাও</button></div>
+<div><button class="ghost" style="width:100%" onclick="WUI.reset()">ডিফল্টে ফেরাও</button></div>
+</div>
+<div class="status" id="wsSetStatus"></div>
+
+<div class="grpTitle" id="wsSetLinkT">🔗 অন্য জায়গা</div>
+<div class="wa-row">
+<div><button class="ghost" style="width:100%" onclick="location.href='/'">⏱️ AI Time Keeper</button></div>
+<div></div>
+</div>
+</div>
+</div>
+
+<footer>Company Workspace • Local only • Time Keeper থেকে আলাদা সেকশন</footer>
+</main>
+</div>
+<script src="/workspace.js"></script>
+<script src="/unified_add.js"></script>
+<script src="/profit.js"></script>
+<script src="/dash.js"></script>
+<script>
+/* ============================================================================
+   WORKSPACE LANGUAGE — বাংলা / English
+   Every element's original text is captured once, then swapped on demand.
+   Anything without an EN entry simply keeps the original wording.
+   ============================================================================ */
+const WSLANG = { bn: null, en: {} };
+const WS_EN = {
+  /* sidebar */
+  nav0: '📊 Dashboard', nav1: '👥 Employees', nav2: '💰 Advance / Salary',
+  nav6: '👷 People & Sites', nav7: '📱 WhatsApp', nav8: '📈 Monthly Profit',
+  nav3: '🧾 Invoice / Payment', nav4: '📢 Notice / Task', nav5: '📧 Mail',
+  nav9: '⚙️ Settings', navTK: '⏱️ Time Keeper',
+  sidefoot: 'Local only — separate from Time Keeper',
+  brand: 'Company\nWorkspace',
+  /* toolbar */
+  barCards: 'Cards: hide / show',
+  barShow: 'Show all', barHide: 'Hide all', barReset: 'Reset to default',
+  barLang: 'Language', barTheme: 'Theme',
+  /* generic */
+  save: 'Save', cancel: 'Cancel', add: 'Add', delete: 'Delete', edit: 'Edit',
+  name: 'Name', phone: 'Phone', site: 'Site', provider: 'Provider',
+  total: 'Total', month: 'Month', year: 'Year', amount: 'Amount',
+  yes: 'Yes', no: 'No', close: 'Close', search: 'Search', loading: 'Loading…',
+  empty: 'Nothing here yet', saved: 'Saved', removed: 'Removed',
+  /* sections */
+  sec0: 'Dashboard', sec1: 'Employee', sec2: 'Advance / Salary',
+  sec3: 'Invoice / Payment', sec4: 'Notice / Task', sec5: 'Mail',
+  sec6: 'People & Sites', sec7: 'WhatsApp', sec8: 'Monthly Profit',
+  /* dashboard tiles */
+  workers: 'Workers', sites: 'Sites', providers: 'Providers',
+  monthProfit: 'This month’s profit', unpaid: 'Unpaid advance',
+  hours: 'Hours', rate: 'Rate', days: 'Days', status: 'Status',
+  onDuty: 'On duty', offDuty: 'Off duty', paid: 'Paid', unpaidTag: 'Unpaid',
+  /* actions */
+  addWorker: 'Add worker', addProvider: 'Add provider', addSite: 'Add site',
+  sendWhatsapp: 'Send on WhatsApp', print: 'Print', exportXlsx: 'Export Excel',
+  reload: 'Reload', refresh: 'Refresh', filter: 'Filter', clear: 'Clear',
+  comingSoon: 'Coming soon', placeholder: 'Coming soon',
+};
+
+const WS_I18N_JOBS = [
+  ['#w0', 'nav0'], ['#w1', 'nav1'], ['#w2', 'nav2'], ['#w3', 'nav3'],
+  ['#w4', 'nav4'], ['#w5', 'nav5'], ['#w6', 'nav6'], ['#w7', 'nav7'],
+  ['#w8', 'nav8'],
+];
+
+/* capture the original text once so we can always go back to বাংলা */
+function wsCapture(){
+  if (WSLANG.bn) return;
+  WSLANG.bn = [];
+  document.querySelectorAll('body *').forEach((el, i) => {
+    if (el.children.length) return;              // only leaf text nodes
+    if (el.closest('script,style')) return;
+    const t = (el.textContent || '').trim();
+    if (t) WSLANG.bn.push([el, t]);
+  });
+}
+
+let WS_LANG = 'bn';
+function wsApplyLang(lang){
+  try { WS_LANG = localStorage.getItem('atk_lang') || localStorage.getItem('ws_lang') || 'bn'; } catch (e) {}
+  if (lang) WS_LANG = lang;
+  wsCapture();
+
+  const isEn = (WS_LANG === 'en');
+
+  // Sidebar buttons with icons preserved
+  const navMap = {
+    'w0': isEn ? '📊 Dashboard' : '📊 ড্যাশবোর্ড',
+    'w1': isEn ? '👥 Employees' : '👥 Employee',
+    'w2': isEn ? '💰 Advance/Salary' : '💰 Advance/Salary',
+    'w6': isEn ? '👷 People & Sites' : '👷 লোক ও সাইট',
+    'w7': isEn ? '📱 WhatsApp' : '📱 WhatsApp',
+    'w8': isEn ? '📈 Monthly Profit' : '📊 মাসিক প্রফিট',
+    'w3': isEn ? '🧾 Invoice/Payment' : '🧾 Invoice/Payment',
+    'w4': isEn ? '📢 Notice/Task' : '📢 Notice/Task',
+    'w5': isEn ? '📧 Mail' : '📧 Mail',
+    'w9': isEn ? '⚙️ Settings' : '⚙️ সেটিংস'
+  };
+  Object.entries(navMap).forEach(([id, text]) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = text;
+  });
+
+  // Header and action buttons
+  const subEl = document.querySelector('header p.sub');
+  if (subEl) subEl.textContent = isEn ? 'All company operations — in one place' : 'কোম্পানির সব কাজ — এক জায়গায়';
+
+  const sBtn = document.getElementById('uniSearchBtn');
+  if (sBtn) sBtn.textContent = isEn ? '🔍 Search' : '🔍 Search';
+
+  const aBtn = document.getElementById('uniAddBtn');
+  if (aBtn) aBtn.textContent = isEn ? '➕ Add' : '➕ Add';
+
+  // Toolbar labels
+  const langLbl = document.getElementById('wsLangLbl');
+  if (langLbl) langLbl.textContent = isEn ? 'Language' : 'ভাষা';
+
+  const themeLbl = document.getElementById('wsThemeLbl');
+  if (themeLbl) themeLbl.textContent = isEn ? 'Theme' : 'থিম';
+
+  const cardsLbl = document.getElementById('wsCardsLbl');
+  if (cardsLbl) cardsLbl.textContent = isEn ? 'Cards' : 'কার্ড';
+
+  const showAllBtn = document.getElementById('wsShowAll');
+  if (showAllBtn) showAllBtn.textContent = isEn ? 'Show all' : 'সব দেখাও';
+
+  const hideAllBtn = document.getElementById('wsHideAll');
+  if (hideAllBtn) hideAllBtn.textContent = isEn ? 'Hide all' : 'সব লুকাও';
+
+  const resetBtn = document.getElementById('wsReset');
+  if (resetBtn) resetBtn.textContent = isEn ? 'Default' : 'ডিফল্ট';
+
+  const duesH2 = document.querySelector('#ws0 h2:first-of-type');
+  if (duesH2) duesH2.textContent = isEn ? '⏳ Dues & Pending' : '⏳ বকেয়া ও ডিউ';
+
+  const cycH2 = document.querySelector('#cycCard h2');
+  if (cycH2) cycH2.textContent = isEn ? '🔄 Monthly Cycle — Timeline' : '🔄 মাসিক চক্র — টাইমলাইন';
+
+  // Re-trigger dashboard load to refresh live cards in the chosen language
+  if (typeof loadDash === 'function') {
+    try { loadDash(); } catch(e) {}
+  }
+
+  // 2. everything else: swap leaf text if we know an English word for it
+  if (WS_LANG === 'en') {
+    const table = {};
+    Object.entries(WS_EN).forEach(([k, v]) => { table[k] = v; });
+    const exact = {
+      'বাংলা': 'বাংলা',
+    };
+    // translate a leaf by looking it up in a phrase table built from WS_EN
+    WSLANG.bn.forEach(([el, bn]) => {
+      if (el.dataset.wsEn) { el.textContent = el.dataset.wsEn; return; }
+      const key = bnToKey(bn);
+      if (key) {
+        el.dataset.wsEn = WS_EN[key];
+        el.textContent = WS_EN[key];
+      }
+    });
+  } else {
+    WSLANG.bn.forEach(([el, bn]) => { el.textContent = bn; });
+  }
+  document.documentElement.lang = WS_LANG === 'en' ? 'en' : 'bn';
+  wsPaintBar();
+}
+
+/* map a বাংলা phrase to its dictionary key (exact match, trimmed) */
+let _BNMAP = null;
+function bnToKey(bn){
+  if (!_BNMAP) {
+    _BNMAP = {
+      '🏠 ড্যাশবোর্ড': 'nav0', '👥 Employee': 'nav1',
+      '💰 Advance/Salary': 'nav2', '🧾 Invoice/Payment': 'nav3',
+      '📢 Notice/Task': 'nav4', '📧 Mail': 'nav5',
+      '👷 লোক ও সাইট': 'nav6', '📱 WhatsApp': 'nav7',
+      '📊 মাসিক প্রফিট': 'nav8',
+      '⏱️ Time Keeper': 'navTK',
+      '💾 সেভ করুন': 'save', 'বাতিল': 'cancel', '➕ যোগ করুন': 'add',
+      '🗑️ মুছুন': 'delete', '✏️ এডিট': 'edit',
+      'নাম': 'name', 'ফোন': 'phone', 'সাইট': 'site',
+      'প্রোভাইডার': 'provider', 'মোট': 'total',
+      'মাস': 'month', 'বছর': 'year', 'টাকা': 'amount',
+      'হ্যাঁ': 'yes', 'না': 'no', 'বন্ধ': 'close',
+      'খোঁজা': 'search', 'লোড হচ্ছে…': 'loading',
+      'কোনো কিছু নেই': 'empty', 'সেভ হয়েছে': 'saved', 'মুছে ফেলা হয়েছে': 'removed',
+      '👷': 'workers', 'সাইট': 'sites', 'প্রোভাইডার': 'providers',
+      'এই মাসের প্রফিট': 'monthProfit', 'বাকি এডভাঞ্স': 'unpaid',
+      'ঘণ্টা': 'hours', 'রেট': 'rate', 'দিন': 'days',
+      'অবস্থা': 'status', 'কাজে': 'onDuty', 'ছুটিতে': 'offDuty',
+      'পরিশোধিত': 'paid', 'অপরিশোধিত': 'unpaidTag',
+      '➕ লোক যোগ': 'addWorker', '➕ প্রোভাইডার যোগ': 'addProvider',
+      '📎 WhatsApp এ পাঠান': 'sendWhatsapp', '🖨️ প্রিন্ট': 'print',
+      '⬇️ Excel': 'exportXlsx', '🔄 রিফ্রেশ': 'refresh',
+      'শীঘ্রই': 'comingSoon',
+    };
+  }
+  const k = _BNMAP[bn];
+  return k || null;
+}
+
+function wsSetLang(l){
+  try { localStorage.setItem('atk_lang', l); localStorage.setItem('ws_lang', l); } catch (e) {}
+  wsApplyLang(l);
+  wsPaintBar();
+}
+
+/* ============================================================================
+   WORKSPACE THEME
+   ============================================================================ */
+const WS_THEMES = [
+  ['liquid-dark', 'Liquid Dark', 'Dark glass, easy on the eyes'],
+  ['midnight', 'Midnight', 'Deep navy, very low glare'],
+  ['deepsea', 'Deep Sea', 'Teal blue, calm'],
+  ['royal', 'Royal Purple', 'Deep violet, rich'],
+  ['liquid-light', 'Liquid Light', 'White glass, light'],
+  ['paper', 'Paper', 'Paper white, daylight'],
+];
+let WS_THEME = 'liquid-dark';
+function wsSetTheme(t){
+  if (!WS_THEMES.some(x => x[0] === t)) t = 'liquid-dark';
+  WS_THEME = t;
+  document.body.dataset.theme = t;
+  try { localStorage.setItem('atk_theme', t); localStorage.setItem('ws_theme', t); } catch (e) {}
+  wsPaintBar();
+}
+function wsLoadTheme(){
+  let t = null;
+  try { t = localStorage.getItem('atk_theme'); } catch (e) {}
+  wsSetTheme(t || 'liquid-dark');   // dark is the default
+}
+function wsCycleTheme(){
+  const i = WS_THEMES.findIndex(x => x[0] === WS_THEME);
+  wsSetTheme(WS_THEMES[(i + 1) % WS_THEMES.length][0]);
+}
+
+/* ============================================================================
+   WORKSPACE UI MANAGER — collapsible cards, same as Time Keeper
+   ============================================================================ */
+const WUI = (() => {
+  const LS = 'ws_ui_hidden';
+  const DEFAULT_HIDDEN = ['ws4', 'ws5'];   // Notice / Mail are placeholders (ws3 Invoice now built)
+  let hidden = {};
+  let reg = [];
+
+  const has = id => !!document.getElementById(id);
+
+  function load() {
+    hidden = {};
+    try { const r = localStorage.getItem(LS); if (r) hidden = JSON.parse(r) || {}; } catch (e) {}
+    if (!Object.keys(hidden).length) {
+      DEFAULT_HIDDEN.forEach(k => { if (has(k)) hidden[k] = true; });
+    }
+  }
+  function persist() { try { localStorage.setItem(LS, JSON.stringify(hidden)); } catch (e) {} }
+
+  function makeBody(card, h2) {
+    let b = null;
+    for (const c of card.children) if (c.classList.contains('card-body')) b = c;
+    if (b) return b;
+    b = document.createElement('div');
+    b.className = 'card-body';
+    while (h2.nextSibling) b.appendChild(h2.nextSibling);
+    card.appendChild(b);
+    return b;
+  }
+  function eyeFor(card, h2) {
+    for (const c of h2.children) if (c.classList.contains('eyeBtn')) return c;
+    const b = document.createElement('button');
+    b.className = 'eyeBtn'; b.type = 'button';
+    b.setAttribute('aria-label', 'card show/hide');
+    b.onclick = (ev) => { ev.stopPropagation(); toggle(card); };
+    const badge = h2.querySelector('.badge');
+    if (badge) h2.insertBefore(b, badge.nextSibling); else h2.appendChild(b);
+    return b;
+  }
+  function build() {
+    reg = [];
+    document.querySelectorAll('.card').forEach((card, i) => {
+      const h2 = card.querySelector(':scope > h2');
+      if (!h2) return;
+      card.dataset.collapsible = '1';
+      const key = card.id || h2.id || ('c' + i);
+      card.dataset.uikey = key;
+      const btn = eyeFor(card, h2);
+      makeBody(card, h2);
+      reg.push({ el: card, key, btn, title: (h2.textContent || '').trim() });
+    });
+    applyAll();
+  }
+  function applyAll() {
+    reg.forEach(r => {
+      if (!r.el.isConnected) return;
+      const on = !!hidden[r.key];
+      r.el.dataset.collapsed = on ? '1' : '0';
+      r.btn.textContent = on ? '🙈' : '👁️';
+      r.btn.title = on ? 'দেখান — ' + r.title.slice(0, 34) : 'লুকান — ' + r.title.slice(0, 34);
+      r.btn.setAttribute('aria-expanded', on ? 'false' : 'true');
+    });
+  }
+  function toggle(card) {
+    const k = card.dataset.uikey;
+    if (!k) return;
+    if (hidden[k]) delete hidden[k]; else hidden[k] = true;
+    applyAll(); persist(); count();
+  }
+  const showAll = () => { hidden = {}; applyAll(); persist(); count(); };
+  const hideAll = () => { reg.forEach(r => hidden[r.key] = true); applyAll(); persist(); count(); };
+  const reset = () => {
+    hidden = {};
+    DEFAULT_HIDDEN.forEach(k => { if (has(k)) hidden[k] = true; });
+    applyAll(); persist(); count();
+  };
+  function count() {
+    const el = document.getElementById('wsUiCount');
+    if (!el) return;
+    el.textContent = `${reg.length} cards · ${reg.filter(r => hidden[r.key]).length} hidden`;
+  }
+
+  /* toolbar: language + theme + card controls, stuck to the top */
+  function toolbar() {
+    if (document.getElementById('wsUiBar')) return;
+    const side = document.querySelector('.sidebar');
+    const bar = document.createElement('div');
+    bar.className = 'uiBar';
+    bar.id = 'wsUiBar';
+    bar.innerHTML =
+      '<span class="lbl" id="wsLangLbl">ভাষা</span>' +
+      '<button id="wsBtnBn" type="button">বাংলা</button>' +
+      '<button id="wsBtnEn" type="button">English</button>' +
+      '<span class="lbl" id="wsThemeLbl">থিম</span>' +
+      '<div style="position:relative;display:inline-block">' +
+        '<button id="wsBtnTheme" type="button">🎨</button>' +
+        '<div id="wsThemeMenu" class="theme-popover" style="display:none"></div>' +
+      '</div>' +
+      '<span class="sp"></span>' +
+      '<span id="saveStatus" style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:#4ade80;font-weight:650;margin-right:12px"><span style="width:7px;height:7px;border-radius:50%;background:#4ade80;box-shadow:0 0 8px #4ade80;display:inline-block"></span> <span id="saveStatusTxt">সংরক্ষিত</span></span>' +
+      '<span class="lbl" id="wsCardsLbl">কার্ড</span>' +
+      '<button id="wsShowAll" type="button">সব দেখাও</button>' +
+      '<button id="wsHideAll" type="button">সব লুকাও</button>' +
+      '<button id="wsReset" type="button">ডিফল্ট</button>' +
+      '<span class="lbl" id="wsUiCount"></span>';
+    const mainEl = document.querySelector('main');
+    if (mainEl) mainEl.insertBefore(bar, mainEl.firstChild);
+    else document.body.insertBefore(bar, document.body.firstChild);
+
+    bar.querySelector('#wsBtnBn').onclick = () => wsSetLang('bn');
+    bar.querySelector('#wsBtnEn').onclick = () => wsSetLang('en');
+    
+    const themeBtn = bar.querySelector('#wsBtnTheme');
+    const themeMenu = bar.querySelector('#wsThemeMenu');
+    themeBtn.onclick = (e) => {
+      e.stopPropagation();
+      const open = themeMenu.style.display !== 'none';
+      themeMenu.style.display = open ? 'none' : 'flex';
+      if (!open) wsRenderThemeMenu(themeMenu);
+    };
+    document.addEventListener('click', () => { if (themeMenu) themeMenu.style.display = 'none'; });
+
+    bar.querySelector('#wsShowAll').onclick = showAll;
+    bar.querySelector('#wsHideAll').onclick = hideAll;
+    bar.querySelector('#wsReset').onclick = reset;
+    wsPaintBar();
+  }
+
+  function repair() {
+    let n = 0;
+    document.querySelectorAll('.card').forEach((card, ci) => {
+      const h2 = card.querySelector(':scope > h2');
+      if (!h2) return;
+      const hasEye = [...h2.children].some(c => c.classList.contains('eyeBtn'));
+      const hasBody = [...card.children].some(c => c.classList.contains('card-body'));
+      if (hasEye && hasBody && card.dataset.collapsible) return;
+      card.dataset.collapsible = '1';
+      card.dataset.uikey = card.id || h2.id || card.dataset.uikey || ('c' + ci);
+      eyeFor(card, h2); makeBody(card, h2); n++;
+    });
+    if (n) { build(); count(); }
+  }
+
+  function init() {
+    try { load(); build(); } catch (e) {}
+    try { toolbar(); } catch (e) {}
+    try { count(); } catch (e) {}
+    [0, 250, 800, 2000].forEach(ms => setTimeout(() => { try { repair(); } catch (e) {} }, ms));
+  }
+  return { init, repair, showAll, hideAll, reset, count };
+})();
+
+/* paint the toggle state on the toolbar */
+
+const THEME_DOT_COLORS = {
+  'liquid-dark': 'linear-gradient(135deg, #020617, #0e7490)',
+  'midnight': 'linear-gradient(135deg, #020617, #0b1e3f)',
+  'deepsea': 'linear-gradient(135deg, #021a26, #075985)',
+  'royal': 'linear-gradient(135deg, #160b30, #4c1d95)',
+  'liquid-light': 'linear-gradient(135deg, #f0f9ff, #fae8ff)',
+  'paper': 'linear-gradient(135deg, #faf7f0, #e9f1f5)'
+};
+
+function wsRenderThemeMenu(menu) {
+  if (!menu) return;
+  menu.innerHTML = WS_THEMES.map(([id, name, desc]) => {
+    const active = id === WS_THEME ? ' on' : '';
+    const dot = THEME_DOT_COLORS[id] || '#7dd3fc';
+    return `<button type="button" class="theme-opt${active}" onclick="wsSetTheme('${id}');this.parentElement.style.display='none'"><span class="theme-dot" style="background:${dot}"></span><span>${name}</span></button>`;
+  }).join('');
+}
+
+
+// ===== ⚡ SNAPPY FEEDBACK: স্ন্যাকবার =====
+(function () {
+  let box = document.getElementById('snkBox');
+  if (!box) { box = document.createElement('div'); box.id = 'snkBox'; document.body.appendChild(box); }
+  window.snack = function (type, msg, ms) {
+    const el = document.createElement('div');
+    el.className = 'snk ' + (type || 'info');
+    const t = ms || (type === 'bad' ? 5200 : 4000);
+    el.innerHTML = '<span class="si"></span><span class="sp"></span><span class="sb"><i></i></span>';
+    el.querySelector('.si').textContent = ({ ok: '✅', bad: '❌', info: '⚡' })[type] || '⚡';
+    el.querySelector('.sp').textContent = String(msg || '');
+    el.querySelector('.sb i').style.animationDuration = t + 'ms';
+    box.appendChild(el);
+    while (box.children.length > 3) box.removeChild(box.firstChild);
+    setTimeout(function () { el.classList.add('out'); setTimeout(function () { el.remove(); }, 320); }, t);
+    return el;
+  };
+})();
+
+// Global fetch hook to automatically trigger save indicator on POST
+// + ⚡ বাটনে রিং → ✓/✕ মরফ এবং ব্যর্থতা হলে স্ন্যাকবার
+const _origFetch = window.fetch;
+let _fxBtn = null, _fxBtnAt = 0;
+document.addEventListener('click', function (e) {
+  const b = e.target.closest && e.target.closest('button');
+  if (b) { _fxBtn = b; _fxBtnAt = Date.now(); }
+  else { _fxBtn = null; }
+}, true);
+function _fxTake() {
+  if (_fxBtn && (Date.now() - _fxBtnAt) < 1200) return _fxBtn;
+  return null;
+}
+function _fxEnd(b, ok) {
+  if (!b) return;
+  b.classList.remove('fx-busy');
+  b.classList.add(ok ? 'fx-done' : 'fx-bad');
+  setTimeout(function () { b.classList.remove('fx-done', 'fx-bad'); }, 950);
+}
+function _fxBrief(j) {
+  if (!j || j.ok !== true) return '';
+  if (j.msg) return j.msg;
+  if (j.message) return j.message;
+  if (j.saved) return '✅ ' + j.saved;
+  if (j.output) return '✅ ' + j.output;
+  return '✅ সংরক্ষিত হয়েছে';
+}
+window.fetch = async function (...args) {
+  const isPost = args[1] && (args[1].method === 'POST' || args[1].method === 'post');
+  const b = isPost ? _fxTake() : null;
+  if (b) { b.classList.remove('fx-done', 'fx-bad'); b.classList.add('fx-busy'); }
+  if (isPost && typeof notifySaveStatus === 'function') notifySaveStatus('saving');
+  try {
+    const res = await _origFetch.apply(this, args);
+    if (isPost && typeof notifySaveStatus === 'function') {
+      setTimeout(() => notifySaveStatus('saved'), 400);
+    }
+    _fxEnd(b, res.ok);
+    /* বাটন দিয়ে চালানো সেভে — সার্ভারের উত্তর অনুযায়ী স্ন্যাকবার */
+    if (isPost && b && typeof snack === 'function') {
+      if (!res.ok) {
+        snack('bad', '❌ সংরক্ষিত হয়নি (HTTP ' + res.status + ')', 5000);
+      } else {
+        let j = null;
+        try { j = await res.clone().json(); } catch (x) { j = null; }
+        if (j && j.ok === false) snack('bad', '❌ ' + (j.error || 'ব্যর্থ হয়েছে'), 5200);
+        else { const m = _fxBrief(j); if (m) snack('ok', m, 3600); }
+      }
+    }
+    return res;
+  } catch (err) {
+    if (isPost && typeof notifySaveStatus === 'function') notifySaveStatus('saved');
+    _fxEnd(b, false);
+    if (isPost && typeof snack === 'function') snack('bad', 'নেটওয়ার্ক সমস্যা — সংরক্ষণ হয়নি', 5000);
+    throw err;
+  }
+};
+
+window.notifySaveStatus = function(state, msg) {
+  const el = document.getElementById('saveStatus');
+  const txt = document.getElementById('saveStatusTxt');
+  if (!el || !txt) return;
+  if (state === 'saving') {
+    el.style.color = '#fbbf24';
+    el.firstElementChild.style.background = '#fbbf24';
+    el.firstElementChild.style.boxShadow = '0 0 8px #fbbf24';
+    txt.textContent = msg || (typeof WS_LANG !== 'undefined' && WS_LANG === 'en' ? 'Saving...' : 'সেভ হচ্ছে...');
+  } else {
+    el.style.color = '#4ade80';
+    el.firstElementChild.style.background = '#4ade80';
+    el.firstElementChild.style.boxShadow = '0 0 8px #4ade80';
+    txt.textContent = msg || (typeof WS_LANG !== 'undefined' && WS_LANG === 'en' ? 'Saved' : 'সংরক্ষিত');
+  }
+};
+
+function wsPaintBar(){
+  try { wsPaintThemeGrid(); wsApplySetLang(); } catch (e) {}
+  try {
+    const bn = document.getElementById('wsBtnBn'), en = document.getElementById('wsBtnEn');
+    if (bn) bn.classList.toggle('on', WS_LANG !== 'en');
+    if (en) en.classList.toggle('on', WS_LANG === 'en');
+    const th = document.getElementById('wsBtnTheme');
+    if (th) {
+      const t = WS_THEMES.find(x => x[0] === WS_THEME);
+      th.textContent = '🎨 ' + (t ? t[1] : WS_THEME);
+      th.title = t ? t[2] : '';
+    }
+  } catch (e) {}
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  setTimeout(() => {
+    try { wsBuildThemeGrid(); } catch (e) {}
+    try { wsLoadTheme(); } catch (e) {}
+    try { wsApplyLang(); } catch (e) {}
+    try { WUI.init(); } catch (e) {}
+    try { wsPaintThemeGrid(); wsApplySetLang(); } catch (e) {}
+  }, 0);
+});
+</script>
+<script>
+/* ============================================================================
+   WORKSPACE SETTINGS — theme cards, language, card controls.
+   The theme key is shared with AI Time Keeper (atk_theme) so both pages always
+   look the same. Dark is the default.
+   ============================================================================ */
+function wsBuildThemeGrid(){
+  const grid = document.getElementById('wsThemeGrid');
+  if (!grid) return;
+  if (grid.dataset.built) return;
+  grid.dataset.built = '1';
+  grid.innerHTML = WS_THEMES.map(([key, name, desc]) =>
+    '<div class="theme-card" id="wsTh_' + key + '" data-wstheme="' + key + '">' +
+    '<div class="theme-prev tp-' + key + '"></div>' +
+    '<b>' + name + '</b><small>' + desc + '</small></div>').join('');
+  grid.querySelectorAll('[data-wstheme]').forEach(el => {
+    el.onclick = () => { wsSetTheme(el.dataset.wstheme); wsSetMsg('থিম বদলেছে'); };
+  });
+}
+
+function wsPaintThemeGrid(){
+  const grid = document.getElementById('wsThemeGrid');
+  if (!grid) return;
+  grid.querySelectorAll('[data-wstheme]').forEach(el => {
+    const on = el.dataset.wstheme === WS_THEME;
+    el.className = 'theme-card' + (on ? ' on' : '');
+    el.title = on ? '✓ এখন চালু আছে' : 'এই থিম বসান';
+  });
+}
+
+/* settings page language buttons */
+function wsPaintSetLang(){
+  const bn = document.getElementById('wsSetBn'), en = document.getElementById('wsSetEn');
+  if (bn) bn.classList.toggle('on', WS_LANG !== 'en');
+  if (en) en.classList.toggle('on', WS_LANG === 'en');
+}
+
+let _setMsgT = null;
+function wsSetMsg(text){
+  const el = document.getElementById('wsSetStatus');
+  if (!el) return;
+  el.className = 'status ok';
+  el.textContent = '✅ ' + text;
+  clearTimeout(_setMsgT);
+  _setMsgT = setTimeout(() => { el.className = 'status'; el.textContent = ''; }, 2200);
+}
+
+/* translations for the settings page itself */
+const WS_SET_EN = {
+  '⚙️ সেটিংস — ভাষা, থিম ও কার্ড': '⚙️ Settings — language, theme & cards',
+  'এখান থেকেই পুরো ওয়ার্কস্পেসের ভাষা, থিম আর কার্ড লুকানো বদলানো যাবে। পছন্দ মনে থাকবে — পরেরবার খুললেই একই থাকবে।':
+    'Change the language, theme and which cards are folded for the whole workspace. Your choice is remembered.',
+  '🌐 ভাষা / Language': '🌐 ভাষা / Language',
+  'উপরের বারের বাটন আর এই বাটন একই কাজ করে।': 'The buttons in the top bar do the same thing.',
+  '🎨 থিম / Theme': '🎨 থিম / Theme',
+  '👁️ কার্ড লুকান / দেখান': '👁️ Hide / show cards',
+  'সব দেখাও': 'Show all', 'সব লুকাও': 'Hide all',
+  'ডিফল্টে ফেরাও': 'Reset to default',
+  '🔗 অন্য জায়গা': '🔗 Elsewhere',
+  '⏱️ AI Time Keeper': '⏱️ AI Time Keeper',
+  '⚙️ সেটিংস': '⚙️ Settings',
+  'বাংলা': 'বাংলা', 'English': 'English',
+  'থিম বদলেছে': 'Theme changed',
+};
+const WS_SET_IDS = [
+  ['wsSetTitle', '⚙️ সেটিংস — ভাষা, থিম ও কার্ড'],
+  ['wsSetLangT', '🌐 ভাষা / Language'],
+  ['wsSetLangHint', 'উপরের বারের বাটন আর এই বাটন একই কাজ করে।'],
+  ['wsSetThemeT', '🎨 থিম / Theme'],
+  ['wsSetCardT', '👁️ কার্ড লুকান / দেখান'],
+  ['wsSetLinkT', '🔗 অন্য জায়গা'],
+  ['w9', '⚙️ সেটিংস'],
+];
+
+function wsApplySetLang(){
+  const en = WS_LANG === 'en';
+  WS_SET_IDS.forEach(([id, bn]) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (el.dataset.setBn == null) el.dataset.setBn = el.textContent.trim();
+    el.textContent = en ? (WS_SET_EN[bn] || bn) : el.dataset.setBn;
+  });
+  const hint = document.querySelector('#wsSetCard .hint');
+  if (hint) {
+    const bn = 'এখান থেকেই পুরো ওয়ার্কস্পেসের ভাষা, থিম আর কার্ড লুকানো বদলানো যাবে। পছন্দ মনে থাকবে — পরেরবার খুললেই একই থাকবে।';
+    if (hint.dataset.setBn == null) hint.dataset.setBn = hint.textContent.trim();
+    hint.textContent = en ? WS_SET_EN[bn] : hint.dataset.setBn;
+  }
+  document.querySelectorAll('#wsSetCard .wa-row .ghost').forEach(b => {
+    const bn = b.textContent.trim();
+    if (b.dataset.setBn == null) b.dataset.setBn = bn;
+    b.textContent = en ? (WS_SET_EN[bn] || bn) : b.dataset.setBn;
+  });
+  wsPaintSetLang();
+}
+</script>
+<script>
+/* ============================================================================
+   MOTION ENGINE
+   - ripple     : click anywhere on a button, the light answers
+   - stagger    : cards and rows come in one after another
+   - countUp    : big numbers tick up instead of snapping into place
+   - themeFlash : the page dissolves when you change the theme
+   Everything is wrapped so a failure in one piece cannot stop the rest.
+   ============================================================================ */
+const MOTION = (() => {
+  const EASE = 26;
+
+  /* ---------------- 1. ripple ---------------- */
+  function ripple(btn, e) {
+    try {
+      const r = btn.getBoundingClientRect();
+      // the ripple has to cover the button, so scale it up by however much
+      // room the click point leaves
+      const d = Math.max(r.width, r.height, 40) * 1.05;
+      const el = document.createElement('span');
+      el.className = 'ripple';
+      el.style.width = el.style.height = d + 'px';
+      const x = (e && e.clientX ? e.clientX - r.left : r.width / 2) - d / 2;
+      const y = (e && e.clientY ? e.clientY - r.top : r.height / 2) - d / 2;
+      el.style.left = x + 'px';
+      el.style.top = y + 'px';
+      btn.classList.add('rippleHost');
+      btn.appendChild(el);
+      setTimeout(() => el.remove(), 660);
+    } catch (err) {}
+  }
+  function wireRipples() {
+    document.querySelectorAll('button,.act,.ghost,.eyeBtn,.bigadd').forEach(b => {
+      if (b.dataset.mr) return;
+      b.dataset.mr = '1';
+      b.addEventListener('pointerdown', (ev) => ripple(b, ev));
+    });
+  }
+
+  /* ---------------- 2. stagger ---------------- */
+  let lastGroup = 0;
+  function stagger(sel, stepMs) {
+    try {
+      document.querySelectorAll(sel).forEach((el, i) => {
+        if (el.dataset.stag) return;
+        el.dataset.stag = '1';
+        el.style.setProperty('--i', i % 12);
+      });
+    } catch (e) {}
+  }
+  function staggerTables() {
+    try {
+      ['#tbody', '#dgrid tbody', '#totalPrev tbody'].forEach(id => {
+        const tb = document.querySelector(id);
+        if (!tb) return;
+        [...tb.children].forEach((tr, i) => {
+          tr.style.setProperty('--r', i);
+        });
+      });
+    } catch (e) {}
+  }
+
+  /* ---------------- 3. countUp ----------------
+     Only a bare number (or a very short "1,882 ঘণ্টা") is animated; anything
+     that reads like a sentence is left exactly as it is.                     */
+  function countUp(el) {
+    try {
+      if (!el || el.dataset.counted) return;
+      if (el.children.length > 2) return;             // markup, not a number
+      const raw = (el.textContent || '').trim();
+      if (raw.length > 90) return;
+      const m = raw.match(/^([^\d\-]*)(-?[\d.,]+)(.*)$/);
+      if (!m) { el.dataset.counted = '1'; return; }
+      const num = parseFloat(m[2].replace(/,/g, ''));
+      if (!isFinite(num) || Math.abs(num) < 2) { el.dataset.counted = '1'; return; }
+      // words in front of the number mean it is a sentence, not a stat
+      if (m[1].replace(/[^\p{L}]/gu, '').length > 14) { el.dataset.counted = '1'; return; }
+      el.dataset.counted = '1';
+      if (window.matchMedia('(prefers-reduced-motion:reduce)').matches) return;
+      const pre = m[1], mid = m[2], post = m[3];
+      const dec = (mid.split('.')[1] || '').length;
+      const neg = num < 0;
+      const target = Math.abs(num);
+      const dur = Math.min(900, 420 + target * 1.6);
+      const t0 = performance.now();
+      const fmt = v => v.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+      const step = (t) => {
+        const k = Math.min(1, (t - t0) / dur);
+        const e = 1 - Math.pow(1 - k, 3);
+        el.textContent = pre + (neg ? '-' : '') + fmt(target * e) + post;
+        if (k < 1) requestAnimationFrame(step);
+        else el.textContent = raw;
+      };
+      requestAnimationFrame(step);
+    } catch (err) {}
+  }
+
+  function wireCounters() {
+    try {
+      document.querySelectorAll('.stat b,.stat,.tile b,.hero .big,.dues b,.big').forEach(countUp);
+    } catch (e) {}
+  }
+
+  /* ---------------- 4. theme flash ---------------- */
+  function flash() {
+    try {
+      if (window.matchMedia('(prefers-reduced-motion:reduce)').matches) return;
+      document.body.classList.remove('themeFade');
+      void document.body.offsetWidth;      // restart the animation
+      document.body.classList.add('themeFade');
+      setTimeout(() => document.body.classList.remove('themeFade'), 520);
+    } catch (e) {}
+  }
+
+  /* ---------------- 5. watch for new cards ---------------- */
+  function observe() {
+    try {
+      const mo = new MutationObserver(() => {
+        wireRipples(); staggerTables(); wireCounters();
+      });
+      mo.observe(document.body, { childList: true, subtree: true });
+    } catch (e) {}
+
+    // when a tab opens, replay the entrance for that section only
+    document.querySelectorAll('[id^="ws"],[id^="s"]').forEach(sec => {
+      try {
+        const inner = new MutationObserver(() => {
+          if (sec.style.display !== 'none') {
+            inner.disconnect();
+            stagger('.card', EASE); staggerTables(); wireRipples(); wireCounters();
+          }
+        });
+        inner.observe(sec, { attributes: true, attributeFilter: ['style'] });
+      } catch (e) {}
+    });
+  }
+
+  /* ---------------- boot ---------------- */
+  function init() {
+    try { wireRipples(); } catch (e) {}
+    try { stagger('.card', EASE); } catch (e) {}
+    try { staggerTables(); } catch (e) {}
+    try { wireCounters(); } catch (e) {}
+    [30, 220, 700, 1600].forEach(ms => setTimeout(() => {
+      try { wireRipples(); staggerTables(); wireCounters(); } catch (e) {}
+    }, ms));
+    try { observe(); } catch (e) {}
+
+    // any theme setter should dissolve the page
+    ['setTheme', 'wsSetTheme'].forEach(name => {
+      if (typeof window[name] !== 'function') return;
+      const orig = window[name];
+      window[name] = function () { const r = orig.apply(this, arguments); flash(); return r; };
+    });
+  }
+
+  return { init, flash, countUp: wireCounters, stagger, wireRipples };
+})();
+
+document.addEventListener('DOMContentLoaded', () => setTimeout(() => MOTION.init(), 0));
+
+/* ================= 🎬 COMMAND PALETTE + 🌌 ফিউচারেস্টিক ফিল (Workspace) ================= */
+(function () {
+  const ITEMS = [
+    { id: 'w0', g: 'ট্যাব', ic: '🏠', t: 'ড্যাশবোর্ড', s: 'কোম্পানির সারসংক্ষেপ', k: 'dashboard home overview ড্যাশবোর্ড সারসংক্ষেপ', run: function () { wtab(0); } },
+    { id: 'w1', g: 'ট্যাব', ic: '👥', t: 'Employee', s: 'কর্মীদের তালিকা ও সিভি', k: 'employee worker staff কর্মী লোক', run: function () { wtab(1); } },
+    { id: 'w2', g: 'ট্যাব', ic: '💰', t: 'Advance / Salary', s: 'এডভান্স ও বেতন হিসাব', k: 'advance salary pay এডভান্স বেতন', run: function () { wtab(2); } },
+    { id: 'w3', g: 'ট্যাব', ic: '🧾', t: 'Invoice / Payment', s: 'ইনভয়েস ও পেমেন্ট', k: 'invoice payment bill ইনভয়েস বিল', run: function () { wtab(3); } },
+    { id: 'w4', g: 'ট্যাব', ic: '📢', t: 'Notice / Task', s: 'নোটিশ ও কাজের তালিকা', k: 'notice task todo নোটিশ কাজ', run: function () { wtab(4); } },
+    { id: 'w5', g: 'ট্যাব', ic: '📧', t: 'Mail', s: 'ইমেইল পাঠান', k: 'mail email ইমেইল পত্র', run: function () { wtab(5); } },
+    { id: 'w6', g: 'ট্যাব', ic: '👷', t: 'লোক ও সাইট', s: 'শ্রমিক ও সাইট-রেট', k: 'labour site rate provider লোক সাইট রেট প্রোভাইডার', run: function () { wtab(6); } },
+    { id: 'w7', g: 'ট্যাব', ic: '📱', t: 'WhatsApp', s: 'হোয়াটসঅ্যাপ মেসেজ', k: 'whatsapp message phone হোয়াটসঅ্যাপ মেসেজ', run: function () { wtab(7); } },
+    { id: 'w8', g: 'ট্যাব', ic: '📊', t: 'মাসিক প্রফিট', s: 'খরচ, প্রফিট ও পেমেন্ট', k: 'profit monthly expense প্রফিট মাসিক খরচ', run: function () { wtab(8); } },
+    { id: 'w9', g: 'ট্যাব', ic: '⚙️', t: 'সেটিংস', s: 'থিম, ভাষা ও তালা', k: 'settings theme language lock সেটিংস থিম তালা', run: function () { wtab(9); } },
+
+    { id: 'find', g: 'অ্যাকশন', ic: '🔍', t: 'লোক খুঁজুন', s: 'নাম দিয়ে সার্চ করুন', k: 'search find person খোঁজা সার্চ লোক', run: function () { showUnifiedAdd('search'); } },
+    { id: 'newp', g: 'অ্যাকশন', ic: '➕', t: 'নতুন লোক / প্রোভাইডার', s: 'নতুন এন্ট্রি যোগ করুন', k: 'add new person provider যোগ নতুন লোক প্রোভাইডার', run: function () { showUnifiedAdd('add'); } },
+    { id: 'thm', g: 'টুল', ic: '🎨', t: 'থিম বদলান', s: '৬টি লিকুইড-গ্লাস থিম', k: 'theme color থিম রঙ', run: function () { wtab(9); } },
+    { id: 'langbn', g: 'টুল', ic: '🌐', t: 'বাংলা করুন', s: 'ইউআই ভাষা বাংলা', k: 'bangla language bn বাংলা ভাষা', run: function () { wsSetLang('bn'); snack('info', 'ভাষা: বাংলা', 2400); } },
+    { id: 'langen', g: 'টুল', ic: '🌐', t: 'English করুন', s: 'UI language English', k: 'english language en ইংরেজি ভাষা', run: function () { wsSetLang('en'); snack('info', 'Language: English', 2400); } },
+    { id: 'tk', g: 'টুল', ic: '⏰', t: 'Time Keeper-এ ফিরে যান', s: 'AI Time Keeper ড্যাশবোর্ড', k: 'time keeper dashboard back টাইম কিপার ফেরত', run: function () { location.href = '/'; } }
+  ];
+
+  const ST = { q: '', sel: 0, list: [] };
+  let box = null, listEl = null, inEl = null;
+
+  function _e(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function recent() { try { const v = JSON.parse(localStorage.getItem('atk_pal') || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; } }
+  function pushRecent(id) { try { let r = recent().filter(function (x) { return x !== id; }); r.unshift(id); localStorage.setItem('atk_pal', JSON.stringify(r.slice(0, 4))); } catch (e) { } }
+  function mark(txt, q) { const t = String(txt || ''); if (!q) return _e(t); const i = t.toLowerCase().indexOf(q); if (i < 0) return _e(t); return _e(t.slice(0, i)) + '<mark>' + _e(t.slice(i, i + q.length)) + '</mark>' + _e(t.slice(i + q.length)); }
+  function score(it, q) {
+    if (!q) return 0;
+    const t = it.t.toLowerCase(), hay = (it.t + ' ' + it.s + ' ' + it.k + ' ' + it.g).toLowerCase();
+    if (t.indexOf(q) === 0) return 100;
+    if (t.indexOf(q) > 0) return 82;
+    if (hay.indexOf(q) > 0) return 55;
+    let j = 0; for (let i = 0; i < hay.length && j < q.length; i++) if (hay[i] === q[j]) j++;
+    return j === q.length ? 22 : -1;
+  }
+  function results() {
+    const q = ST.q.trim().toLowerCase();
+    if (!q) {
+      const rec = recent().map(function (id) { return ITEMS.filter(function (x) { return x.id === id; })[0]; }).filter(Boolean);
+      return { recent: rec, items: ITEMS.filter(function (x) { return rec.indexOf(x) < 0; }) };
+    }
+    const s = ITEMS.map(function (it) { return { it: it, sc: score(it, q) }; }).filter(function (x) { return x.sc >= 0; });
+    s.sort(function (a, b) { return b.sc - a.sc; });
+    return { recent: [], items: s.map(function (x) { return x.it; }) };
+  }
+  function row(it, q, i) {
+    return '<div class="pit" style="animation-delay:' + (Math.min(i, 16) * 15) + 'ms"><span class="pi2">' + it.ic + '</span><span class="pt"><b>' + mark(it.t, q) + '</b><small>' + _e(it.s) + '</small></span></div>';
+  }
+  function paint() {
+    const r = results(), q = ST.q.trim().toLowerCase();
+    let h = '', flat = [];
+    if (r.recent.length) { h += '<div class="pgrp">সাম্প্রতিক</div>'; r.recent.forEach(function (it) { flat.push(it); h += row(it, q, flat.length - 1); }); }
+    let lg = '';
+    r.items.forEach(function (it) { if (it.g !== lg) { lg = it.g; h += '<div class="pgrp">' + _e(it.g) + '</div>'; } flat.push(it); h += row(it, q, flat.length - 1); });
+    if (!flat.length) h = '<div class="palEmpty">🔍 কিছু পাওয়া গেল না<br><small>বাংলা বা ইংরেজি — দুটোতেই লিখতে পারেন</small></div>';
+    listEl.innerHTML = h; ST.list = flat;
+    if (ST.sel >= flat.length) ST.sel = Math.max(0, flat.length - 1);
+    const rows = listEl.querySelectorAll('.pit');
+    rows.forEach(function (el, i) {
+      if (i === ST.sel) el.classList.add('sel');
+      el.addEventListener('mouseenter', function () { setState(i); });
+      el.addEventListener('mousedown', function (e) { e.preventDefault(); ST.sel = i; run(); });
+    });
+  }
+  function setState(i) {
+    if (!ST.list.length) return;
+    ST.sel = Math.max(0, Math.min(ST.list.length - 1, i));
+    const rows = listEl.querySelectorAll('.pit');
+    rows.forEach(function (el, k) { el.classList.toggle('sel', k === ST.sel); });
+    if (rows[ST.sel] && rows[ST.sel].scrollIntoView) rows[ST.sel].scrollIntoView({ block: 'nearest' });
+  }
+  function run() {
+    const it = ST.list[ST.sel]; if (!it) return;
+    close(); pushRecent(it.id);
+    try { it.run(); } catch (e) { if (typeof snack === 'function') snack('bad', '❌ ' + e, 4500); }
+  }
+  function close() { if (box) box.classList.remove('on'); }
+  function build() {
+    box = document.createElement('div'); box.className = 'pal';
+    box.innerHTML = '<div class="palBox"><div class="palTop"><span class="pi">🔍</span><input id="palIn" placeholder="অ্যাকশন, ট্যাব বা ফিচার লিখুন…"><kbd>Esc</kbd></div><div class="palList" id="palList"></div><div class="palFoot"><span><b>↑↓</b> নেভিগেট</span><span><b>⏎</b> চালান</span><span><b>Esc</b> বন্ধ</span></div></div>';
+    document.body.appendChild(box);
+    listEl = box.querySelector('#palList'); inEl = box.querySelector('#palIn');
+    inEl.addEventListener('input', function () { ST.q = inEl.value; ST.sel = 0; paint(); });
+    box.addEventListener('mousedown', function (e) { if (e.target === box) close(); });
+  }
+  window.PAL = {
+    open: function () {
+      if (!box) build();
+      box.classList.add('on'); inEl.value = ''; ST.q = ''; ST.sel = 0; paint();
+      setTimeout(function () { inEl.focus(); }, 30);
+    },
+    close: close,
+    list: function () { return ITEMS.map(function (i) { return i.t; }); }
+  };
+
+  document.addEventListener('keydown', function (e) {
+    const on = box && box.classList.contains('on');
+    if ((e.ctrlKey || e.metaKey) && String(e.key).toLowerCase() === 'k') { e.preventDefault(); on ? close() : PAL.open(); return; }
+    if (!on) return;
+    if (e.key === 'Escape') { e.preventDefault(); close(); return; }
+    const n = ST.list.length;
+    if (e.key === 'ArrowDown') { e.preventDefault(); setState(ST.sel + 1); return; }
+    if (e.key === 'ArrowUp') { e.preventDefault(); setState(ST.sel - 1); return; }
+    if (e.key === 'Enter') { e.preventDefault(); run(); return; }
+    if (e.key === 'Tab' && n) { e.preventDefault(); setState((ST.sel + (e.shiftKey ? -1 : 1) + n) % n); }
+  });
+
+  /* ---- 🌌 কার্সার-অনুসরণকারী আলো ---- */
+  (function () {
+    try { if (matchMedia('(prefers-reduced-motion: reduce)').matches) return; } catch (e) { }
+    try { if (matchMedia('(pointer: coarse)').matches) return; } catch (e) { }
+    const g = document.createElement('div'); g.className = 'cg'; document.body.appendChild(g);
+    let x = 0, y = 0, raf = 0, on = false;
+    document.addEventListener('mousemove', function (e) {
+      x = e.clientX; y = e.clientY;
+      if (!on) { on = true; document.body.classList.add('cgOn'); }
+      if (!raf) raf = requestAnimationFrame(function () { raf = 0; g.style.transform = 'translate(' + x + 'px,' + y + 'px) translate(-50%,-50%)'; });
+    }, { passive: true });
+  })();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🔒 AI Time Keeper — Login</title>
+<style>
+*{box-sizing:border-box}
+:root{
+ --txt:#f2f0ff;--mut:#cfc6f5;--acc:#7dd3fc;--ok:#4ade80;--warn:#fbbf24;
+ --red:#f87171;--vio:#a78bfa;--pink:#f0abfc;--cyan:#67e8f9;
+}
+html,body{height:100%}
+body{
+ margin:0;overflow:hidden;display:flex;align-items:center;justify-content:center;
+ font-family:'Hind Siliguri','Segoe UI',Arial,sans-serif;color:var(--txt);
+ background:linear-gradient(120deg,#1a1040 0%,#4c1d95 26%,#6d28d9 46%,#2563eb 74%,#0ea5e9 100%);
+ background-size:320% 320%;animation:bgSlide 20s ease infinite}
+@keyframes bgSlide{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+
+/* ---- ভাসমান আলোর গোলো ---- */
+.orbs{position:fixed;inset:0;overflow:hidden;pointer-events:none;z-index:0}
+.orbs i{position:absolute;display:block;border-radius:50%;filter:blur(72px);opacity:.5;animation:float 18s ease-in-out infinite}
+.orbs i:nth-child(1){width:360px;height:360px;left:-90px;top:-70px;background:#f0abfc;animation-duration:17s}
+.orbs i:nth-child(2){width:320px;height:320px;right:-80px;top:16%;background:#22d3ee;animation-duration:22s;animation-delay:-5s}
+.orbs i:nth-child(3){width:300px;height:300px;left:12%;bottom:-100px;background:#818cf8;animation-duration:19s;animation-delay:-9s}
+.orbs i:nth-child(4){width:230px;height:230px;right:16%;bottom:4%;background:#34d399;opacity:.32;animation-duration:25s;animation-delay:-13s}
+@keyframes float{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(55px,-45px) scale(1.14)}66%{transform:translate(-45px,40px) scale(.9)}}
+
+/* ---- মোটা জাল ---- */
+.grid{position:fixed;inset:0;pointer-events:none;z-index:0;
+ background-image:linear-gradient(rgba(255,255,255,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.05) 1px,transparent 1px);
+ background-size:48px 48px;
+ -webkit-mask-image:radial-gradient(ellipse at 50% 50%,#000 15%,transparent 76%);
+ mask-image:radial-gradient(ellipse at 50% 50%,#000 15%,transparent 76%)}
+
+/* ---- গ্লাস কার্ড ---- */
+.card{position:relative;z-index:2;width:min(404px,92vw);padding:34px 30px 26px;border-radius:30px;text-align:center;
+ background:linear-gradient(155deg,rgba(255,255,255,.17),rgba(255,255,255,.05));
+ border:1px solid rgba(255,255,255,.28);
+ backdrop-filter:blur(26px) saturate(150%);-webkit-backdrop-filter:blur(26px) saturate(150%);
+ box-shadow:0 24px 70px rgba(12,8,45,.6),inset 0 1px 0 rgba(255,255,255,.35);
+ animation:cardIn .85s cubic-bezier(.2,.9,.3,1.2) both}
+@keyframes cardIn{from{opacity:0;transform:translateY(40px) scale(.93)}to{opacity:1;transform:none}}
+.card::before{content:'';position:absolute;top:0;left:-70%;width:52%;height:100%;pointer-events:none;
+ background:linear-gradient(100deg,transparent,rgba(255,255,255,.2),transparent);transform:skewX(-18deg);
+ animation:sheen 5.5s ease-in-out infinite}
+@keyframes sheen{0%{left:-70%}45%,100%{left:140%}}
+
+.lock{width:82px;height:82px;margin:0 auto 14px;border-radius:26px;display:grid;place-items:center;font-size:38px;
+ background:linear-gradient(135deg,rgba(240,171,252,.4),rgba(103,232,249,.3));
+ border:1px solid rgba(255,255,255,.45);backdrop-filter:blur(10px);
+ box-shadow:0 12px 36px rgba(168,85,247,.5);
+ animation:lockBob 3.6s ease-in-out infinite,lockPulse 2.8s ease-in-out infinite}
+@keyframes lockBob{0%,100%{transform:translateY(0) rotate(-4deg)}50%{transform:translateY(-10px) rotate(4deg)}}
+@keyframes lockPulse{0%,100%{box-shadow:0 12px 36px rgba(168,85,247,.5)}50%{box-shadow:0 12px 50px rgba(103,232,249,.8)}}
+
+h1{margin:0 0 5px;font-size:23px;letter-spacing:-.02em;
+ background:linear-gradient(90deg,#f0abfc,#a78bfa 45%,#67e8f9);
+ -webkit-background-clip:text;background-clip:text;color:transparent;
+ animation:gradShift 5s ease infinite;background-size:200% 200%}
+@keyframes gradShift{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+.sub{font-size:13px;color:var(--mut);margin:0 0 18px;line-height:1.6}
+
+/* ---- ঘর ---- */
+.f{position:relative;margin:16px 0}
+.f input{width:100%;padding:19px 46px 11px 15px;border-radius:15px;
+ border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.1);color:#fff;
+ font-size:15.5px;font-family:inherit;outline:none;transition:.3s}
+.f input:focus{border-color:rgba(103,232,249,.8);background:rgba(255,255,255,.17);
+ box-shadow:0 0 0 4px rgba(103,232,249,.16),0 8px 26px rgba(0,0,0,.25)}
+.f label{position:absolute;left:16px;top:17px;font-size:14.5px;color:var(--mut);
+ pointer-events:none;transition:.22s cubic-bezier(.4,0,.2,1);padding:0 5px}
+.f input:focus+label,.f input:not(:placeholder-shown)+label{top:-9px;left:12px;font-size:11px;color:var(--acc);
+ background:rgba(26,16,64,.9);border:1px solid rgba(103,232,249,.35);border-radius:7px;letter-spacing:.04em}
+.eye{position:absolute;right:11px;top:50%;transform:translateY(-50%);background:none;border:0;
+ color:var(--mut);font-size:16px;cursor:pointer;padding:5px;transition:.2s;line-height:1}
+.eye:hover{color:var(--acc);transform:translateY(-50%) scale(1.18)}
+
+/* ---- বাটন ---- */
+.go{position:relative;overflow:hidden;margin-top:20px;width:100%;padding:15px;border:0;border-radius:16px;
+ cursor:pointer;font-family:inherit;font-weight:800;font-size:15.5px;color:#12062e;letter-spacing:.01em;
+ background:linear-gradient(90deg,#f0abfc,#a78bfa 45%,#67e8f9);
+ box-shadow:0 10px 30px rgba(139,92,246,.5);transition:.25s}
+.go:hover{transform:translateY(-3px);box-shadow:0 16px 42px rgba(103,232,249,.6)}
+.go:active{transform:translateY(-1px) scale(.99)}
+.go:disabled{opacity:.8;cursor:wait;transform:none}
+.go::after{content:'';position:absolute;top:0;left:-130%;width:55%;height:100%;pointer-events:none;
+ background:linear-gradient(100deg,transparent,rgba(255,255,255,.8),transparent);transform:skewX(-20deg);
+ animation:btnShine 3.2s ease-in-out infinite}
+@keyframes btnShine{0%{left:-130%}58%,100%{left:170%}}
+
+.err{min-height:21px;margin-top:12px;font-size:13.5px;color:var(--red)}
+.shake{animation:shake .5s}
+@keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-12px)}40%{transform:translateX(10px)}60%{transform:translateX(-7px)}80%{transform:translateX(4px)}}
+
+.foot{display:flex;justify-content:space-between;align-items:center;margin-top:14px;padding-top:14px;
+ border-top:1px solid rgba(255,255,255,.14);font-size:11.5px;color:var(--mut)}
+.pill{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.25);color:var(--txt);
+ border-radius:20px;padding:5px 13px;font-size:11.5px;cursor:pointer;font-family:inherit;transition:.2s}
+.pill:hover{background:rgba(255,255,255,.2);transform:translateY(-1px)}
+
+/* ============ ৭ সেকেন্ডের অ্যানিমেশন ============ */
+.stage{position:fixed;inset:0;z-index:50;display:none;align-items:center;justify-content:center;padding:18px;
+ background:rgba(6,4,26,.84);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
+.stage.on{display:flex;animation:fade .35s ease}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+.sbox{width:min(438px,94vw);padding:32px 28px 26px;border-radius:28px;text-align:center;
+ background:linear-gradient(155deg,rgba(255,255,255,.16),rgba(255,255,255,.05));
+ border:1px solid rgba(255,255,255,.28);backdrop-filter:blur(24px);
+ box-shadow:0 28px 74px rgba(0,0,0,.6);
+ animation:pop .5s cubic-bezier(.34,1.56,.64,1) both}
+@keyframes pop{from{opacity:0;transform:scale(.84) translateY(18px)}to{opacity:1;transform:none}}
+
+.ring{position:relative;width:134px;height:134px;margin:0 auto 16px}
+.ring svg{transform:rotate(-90deg)}
+.ring .bgc,.ring .fg{fill:none;stroke-width:9;stroke-linecap:round}
+.ring .bgc{stroke:rgba(255,255,255,.13)}
+.ring .fg{stroke:url(#gr1);stroke-dasharray:352;stroke-dashoffset:352;animation:ringGo 7s linear forwards}
+@keyframes ringGo{to{stroke-dashoffset:0}}
+.ring .em{position:absolute;inset:0;display:grid;place-items:center;font-size:44px;
+ animation:lockBob 2.4s ease-in-out infinite}
+.ring .pc{position:absolute;left:0;right:0;bottom:4px;font-size:11.5px;color:var(--mut);letter-spacing:.16em}
+.sbox h3{margin:0 0 4px;font-size:19px}
+.sbox .sm{margin:0 0 16px;font-size:13px;color:var(--mut)}
+
+.steps{display:flex;flex-direction:column;gap:8px;text-align:left}
+.stp{display:flex;align-items:center;gap:11px;padding:9px 13px;border-radius:13px;
+ background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);
+ opacity:.35;transform:translateX(-10px);transition:.45s cubic-bezier(.4,0,.2,1);font-size:13.5px}
+.stp .ic{flex:0 0 27px;width:27px;height:27px;border-radius:9px;display:grid;place-items:center;
+ font-size:13px;background:rgba(255,255,255,.12);transition:.35s}
+.stp .tx b{display:block;font-size:13.5px;font-weight:700}
+.stp .tx small{display:block;font-size:11.5px;color:var(--mut);margin-top:1px}
+.stp .tk{margin-left:auto;color:var(--ok);font-size:15px;opacity:0;transform:scale(.2);transition:.35s}
+.stp.now{opacity:1;transform:none;
+ background:linear-gradient(90deg,rgba(167,139,250,.32),rgba(103,232,249,.14));
+ border-color:rgba(103,232,249,.5);box-shadow:0 6px 22px rgba(139,92,246,.32)}
+.stp.now .ic{background:linear-gradient(135deg,#a78bfa,#67e8f9);transform:scale(1.15)}
+.stp.done{opacity:1;transform:none;border-color:rgba(74,222,128,.32);background:rgba(74,222,128,.08)}
+.stp.done .ic{background:linear-gradient(135deg,#4ade80,#22d3ee);color:#04210f}
+.stp.done .tk{opacity:1;transform:scale(1)}
+
+/* ============ ওয়েলকাম পপআপ ============ */
+.wel{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;padding:18px;
+ background:radial-gradient(circle at 50% 40%,rgba(13,20,38,.95),rgba(4,7,16,.99) 74%);
+ backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
+.wel.on{display:flex;animation:fade .4s ease}
+.wbox{position:relative;width:min(510px,95vw);text-align:center;padding:46px 34px 34px;border-radius:32px;
+ background:linear-gradient(160deg,rgba(15,23,42,.9),rgba(8,14,28,.96));
+ border:1px solid rgba(56,189,248,.30);backdrop-filter:blur(28px);overflow:hidden;
+ box-shadow:0 30px 90px rgba(0,0,0,.66),inset 0 1px 0 rgba(255,255,255,.14);
+ animation:welIn .7s cubic-bezier(.2,.9,.3,1.04) both}
+@keyframes welIn{from{opacity:0;transform:scale(.7) translateY(30px);filter:blur(8px)}to{opacity:1;transform:none;filter:blur(0)}}
+.wbox::before{content:'';position:absolute;inset:12px;pointer-events:none;
+ background:
+  linear-gradient(#38bdf8,#38bdf8) top left/26px 2px no-repeat,
+  linear-gradient(#38bdf8,#38bdf8) top left/2px 26px no-repeat,
+  linear-gradient(#38bdf8,#38bdf8) top right/26px 2px no-repeat,
+  linear-gradient(#38bdf8,#38bdf8) top right/2px 26px no-repeat,
+  linear-gradient(#38bdf8,#38bdf8) bottom left/26px 2px no-repeat,
+  linear-gradient(#38bdf8,#38bdf8) bottom left/2px 26px no-repeat,
+  linear-gradient(#38bdf8,#38bdf8) bottom right/26px 2px no-repeat,
+  linear-gradient(#38bdf8,#38bdf8) bottom right/2px 26px no-repeat}
+.wico{position:relative;z-index:1;width:98px;height:98px;margin:0 auto 18px;border-radius:50%;
+ display:grid;place-items:center;font-size:47px;
+ background:linear-gradient(135deg,rgba(56,189,248,.22),rgba(15,23,42,.55));
+ border:1px solid rgba(56,189,248,.50);box-shadow:0 16px 46px rgba(14,165,233,.30);
+ animation:popIn .8s .2s cubic-bezier(.34,1.56,.64,1) both}
+.wico::after{content:'';position:absolute;inset:-8px;border-radius:50%;
+ border:1px dashed rgba(56,189,248,.50);animation:ringSpin 14s linear infinite}
+@keyframes ringSpin{to{transform:rotate(360deg)}}
+@keyframes popIn{from{opacity:0;transform:scale(.3) rotate(-40deg)}to{opacity:1;transform:none}}
+.wel h2{position:relative;z-index:1;margin:0 0 10px;font-size:27px;letter-spacing:-.025em;line-height:1.3;
+ color:#f8fafc;font-weight:700}
+.wel p{position:relative;z-index:1;margin:0 0 6px;font-size:14.5px;color:#94a3b8;line-height:1.75}
+.wel .wsub{font-size:12.5px;opacity:.82;margin-bottom:2px}
+.wtag{position:relative;z-index:1;display:inline-block;margin-top:14px;padding:6px 16px;border-radius:20px;
+ font-size:12px;letter-spacing:.06em;color:#a5f3fc;font-weight:700;
+ background:rgba(56,189,248,.10);border:1px solid rgba(56,189,248,.34);box-shadow:none}
+.wbtn{position:relative;z-index:1;margin-top:24px;padding:15px 36px;border:0;border-radius:16px;cursor:pointer;
+ font-family:inherit;font-weight:800;font-size:15.5px;color:#04141f;overflow:hidden;
+ background:linear-gradient(90deg,#0891b2,#38bdf8);box-shadow:0 14px 38px rgba(8,145,178,.44);transition:.25s}
+.wbtn:hover{transform:translateY(-3px) scale(1.03);box-shadow:0 18px 46px rgba(8,145,178,.62)}
+.wbtn::after{content:'';position:absolute;top:0;left:-130%;width:55%;height:100%;
+ background:linear-gradient(100deg,transparent,rgba(255,255,255,.85),transparent);transform:skewX(-20deg);
+ animation:btnShine 3s ease-in-out infinite}
+/* ---- অফিস কনসোল: স্ট্যাটাস-পিল / ফুটার / স্ক্যান ---- */
+.pvhead{position:relative;z-index:2;display:flex;align-items:center;gap:9px;justify-content:center;
+ margin:0 0 18px;padding:7px 15px;border:1px solid rgba(56,189,248,.30);border-radius:999px;
+ background:rgba(56,189,248,.08);font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;
+ color:#7dd3fc;font-weight:700}
+.pvhead i{width:7px;height:7px;border-radius:50%;background:#38bdf8;box-shadow:0 0 10px #38bdf8;
+ animation:pvdot 1.6s ease-in-out infinite}
+@keyframes pvdot{0%,100%{opacity:1}50%{opacity:.3}}
+.pvfoot{position:relative;z-index:2;margin-top:18px;padding-top:13px;border-top:1px dashed rgba(148,163,184,.24);
+ font-size:10.5px;letter-spacing:.12em;color:#64748b;display:flex;justify-content:center;gap:16px;text-transform:uppercase}
+.pvfoot span{white-space:nowrap}
+.pvscan{position:absolute;left:0;right:0;height:70px;top:-70px;pointer-events:none;z-index:3;
+ background:linear-gradient(180deg,transparent,rgba(56,189,248,.11),transparent);animation:pvscan 5s linear infinite}
+@keyframes pvscan{0%{top:-70px}100%{top:100%}}
+
+@media(max-width:430px){.card{padding:28px 20px 22px}.lock{width:70px;height:70px;font-size:33px}h1{font-size:21px}}
+</style>
+</head>
+<body>
+
+<div class="orbs"><i></i><i></i><i></i><i></i></div>
+<div class="grid"></div>
+
+<!-- ===================== লগইন কার্ড ===================== -->
+<div class="card" id="card">
+  <div class="lock">🔒</div>
+  <h1>AI Time Keeper</h1>
+  <p class="sub" id="sub">User ID ও পাসওয়ার্ড দিন</p>
+
+  <div class="f">
+    <input id="uid" autocomplete="username" maxlength="64" placeholder=" " spellcheck="false">
+    <label id="uidLb" for="uid">User ID</label>
+  </div>
+
+  <div class="f">
+    <input id="pw" type="password" autocomplete="current-password" maxlength="64" placeholder=" ">
+    <label id="pwLb" for="pw">Password</label>
+    <button class="eye" id="eye" type="button" title="দেখুন / Hide">👁️</button>
+  </div>
+
+  <button class="go" id="go" type="button">🔓 খুলুন / Open</button>
+  <div class="err" id="err"></div>
+
+  <div class="foot">
+    <span id="hint">🔒 স্থানীয় সার্ভার • ১২ ঘণ্টা সেশন</span>
+    <button class="pill" id="langBtn" type="button">EN</button>
+  </div>
+</div>
+
+<!-- ===================== ৭ সেকেন্ডের অ্যানিমেশন ===================== -->
+<div class="stage" id="stage">
+  <div class="sbox">
+    <div class="ring">
+      <svg width="134" height="134" viewBox="0 0 134 134">
+        <defs><linearGradient id="gr1" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#f0abfc"/><stop offset="50%" stop-color="#a78bfa"/><stop offset="100%" stop-color="#67e8f9"/>
+        </linearGradient></defs>
+        <circle class="bgc" cx="67" cy="67" r="56"/>
+        <circle class="fg"  cx="67" cy="67" r="56"/>
+      </svg>
+      <div class="em" id="ringEm">🔐</div>
+      <div class="pc"><span id="pct">0%</span></div>
+    </div>
+
+    <h3 id="stTitle">প্রবেশ চলছে…</h3>
+    <p class="sm" id="stSub">এক একটা ধাপে সেটআপ হচ্ছে</p>
+
+    <div class="steps" id="steps"></div>
+  </div>
+</div>
+
+<!-- ===================== ওয়েলকাম পপআপ ===================== -->
+<div class="wel" id="wel">
+  <div class="wbox" id="wbox">
+    <div class="pvhead"><i></i>ACCESS GRANTED</div>
+    <div class="wico">🛡️</div>
+    <h2 id="welTitle">Welcome to Universal Workspace</h2>
+    <p id="welBody">আপনার পরিচয় নিশ্চিত হয়েছে — ড্যাশবোর্ড প্রস্তুত।</p>
+    <p class="wsub" id="welSub">সব ডেটা, সেটিংস ও অটো-ব্যাকআপ অক্ষত আছে।</p>
+    <div class="wtag" id="welTag">✅ সব ধাপ সম্পন্ন</div>
+    <br>
+    <button class="wbtn" id="wbtn" type="button">🚀 ড্যাশবোর্ডে যান</button>
+    <div class="pvfoot"><span>Session 12h</span><span>Local</span><span>127.0.0.1:8765</span></div>
+    <div class="pvscan"></div>
+  </div>
+</div>
+
+<script>
+/* ================= ভাষা ================= */
+const DICT={
+ bn:{sub:'User ID ও পাসওয়ার্ড দিন',
+     subNew:'প্রথমবার — নতুন User ID ও পাসওয়ার্ড বানান',
+     uidLb:'User ID',pwLb:'Password',
+     open:'🔓 খুলুন / Open',create:'💾 অ্যাকাউন্ট বানান / Create',
+     busy:'⏳ যাচাই হচ্ছে…',hint:'🔒 স্থানীয় সার্ভার • ১২ ঘণ্টা সেশন',
+     xid:'❌ User ID লিখুন',xpw:'❌ পাসওয়ার্ড কমপক্ষে ৪ অক্ষর',
+     xagain:'❌ আবার লগইন করুন',xnet:'❌ সংযোগ সমস্যা',
+     stTitle:'প্রবেশ চলছে…',stSub:'এক একটা ধাপে সেটআপ হচ্ছে',
+     enter:'🚀 ড্যাশবোর্ডে যান',
+     welBody:'আপনার পরিচয় নিশ্চিত হয়েছে — ড্যাশবোর্ড প্রস্তুত।',
+     welSub:'সব ডেটা, সেটিংস ও অটো-ব্যাকআপ অক্ষত আছে।',
+     welTag:'✅ সব ধাপ সম্পন্ন'},
+ en:{sub:'Enter your User ID and password',
+     subNew:'First time — create a new User ID and password',
+     uidLb:'User ID',pwLb:'Password',
+     open:'🔓 Open',create:'💾 Create account',
+     busy:'⏳ Verifying…',hint:'🔒 Local server • 12 hour session',
+     xid:'❌ Enter your User ID',xpw:'❌ Password must be 4+ characters',
+     xagain:'❌ Please log in again',xnet:'❌ Connection problem',
+     stTitle:'Signing in…',stSub:'Setting up step by step',
+     enter:'🚀 Go to dashboard',
+     welBody:'Your identity is confirmed — the dashboard is ready.',
+     welSub:'All data, settings and auto-backups are intact.',
+     welTag:'✅ All steps completed'}
+};
+/* ৭টি ধাপ — প্রতিটি ১ সেকেন্ড (মোট ৭ সেকেন্ড) */
+const STEPS=[
+ {ic:'🔐',bn:'পরিচয় যাচাই',en:'Verifying identity',sbn:'ID ও পাসওয়ার্ড মিলিয়ে দেখা হচ্ছে',sen:'Checking ID and password'},
+ {ic:'✅',bn:'পরিচয় নিশ্চিত',en:'Identity confirmed',sbn:'সঠিক পরিচয়পত্র গৃহীত হয়েছে',sen:'Correct credentials accepted'},
+ {ic:'🔑',bn:'সেশন তৈরি',en:'Creating session',sbn:'নিরাপদ টোকেন বানানো হচ্ছে',sen:'Generating a secure token'},
+ {ic:'🛡️',bn:'নিরাপত্তা যাচাই',en:'Security check',sbn:'সুরক্ষা পরীক্ষা চলছে',sen:'Running safety checks'},
+ {ic:'📂',bn:'ডেটা লোড',en:'Loading data',sbn:'শিট ও সেটিংস পড়া হচ্ছে',sen:'Reading sheets and settings'},
+ {ic:'⚡',bn:'ড্যাশবোর্ড প্রস্তুত',en:'Dashboard ready',sbn:'ঘরগুলো সাজানো হচ্ছে',sen:'Arranging the cards'},
+ {ic:'🔓',bn:'প্রবেশ অনুমোদিত',en:'Access granted',sbn:'স্বাগতম — ঢোকার অনুমতি আছে',sen:'Welcome — you are allowed in'}
+];
+let LANG=(function(){try{return localStorage.getItem('atk_lang')==='en'?'en':'bn'}catch(e){return 'bn'}})();
+const $=id=>document.getElementById(id);
+function T(k){return (DICT[LANG]&&DICT[LANG][k])||DICT.bn[k]||k}
+
+function applyLang(){
+ $('sub').textContent=HAS_USERS?T('sub'):T('subNew');
+ $('uidLb').textContent=T('uidLb'); $('pwLb').textContent=T('pwLb');
+ $('go').textContent=HAS_USERS?T('open'):T('create');
+ $('hint').textContent=T('hint');
+ $('langBtn').textContent=LANG==='bn'?'EN':'বাং';
+ $('stTitle').textContent=T('stTitle'); $('stSub').textContent=T('stSub');
+ $('welBody').textContent=T('welBody'); $('welSub').textContent=T('welSub');
+ $('welTag').textContent=T('welTag'); $('wbtn').textContent=T('enter');
+ $('eye').title=LANG==='bn'?'পাসওয়ার্ড দেখুন':'Show password';
+ buildSteps();
+}
+$('langBtn').onclick=()=>{LANG=LANG==='bn'?'en':'bn';try{localStorage.setItem('atk_lang',LANG)}catch(e){}applyLang()};
+
+function buildSteps(){
+ $('steps').innerHTML=STEPS.map(s=>
+  `<div class="stp"><span class="ic">${s.ic}</span>
+   <span class="tx"><b>${LANG==='bn'?s.bn:s.en}</b><small>${LANG==='bn'?s.sbn:s.sen}</small></span>
+   <span class="tk">✓</span></div>`).join('');
+}
+
+/* ================= স্ট্যাটাস ================= */
+let HAS_USERS=true;
+fetch('/api/lock/status').then(r=>r.json()).then(j=>{
+ HAS_USERS=!!j.has_users;
+ if(j.authed){location.href='/';return}
+ applyLang();
+}).catch(()=>{applyLang()});
+applyLang();
+
+/* ================= পাসওয়ার্ড দেখা/লুকানো ================= */
+$('eye').onclick=()=>{const p=$('pw');p.type=p.type==='password'?'text':'password';
+ $('eye').textContent=p.type==='password'?'👁️':'🙈'};
+
+/* ================= ভুল মেসেজ + কাঁপানো ================= */
+function fail(m){$('err').textContent=m;const c=$('card');c.classList.remove('shake');void c.offsetWidth;c.classList.add('shake')}
+
+/* ================= ৭ সেকেন্ডের ধাপ ================= */
+const EMOJI=['🔐','✅','🔑','🛡️','📂','⚡','🔓'];
+function startStage(){
+ $('stage').classList.add('on');
+ const box=[...document.querySelectorAll('.stp')];
+ box.forEach(s=>s.classList.remove('now','done'));
+ $('pct').textContent='0%'; $('ringEm').textContent='🔐';
+ let i=0;
+ const step=()=>{
+  if(i>0){box[i-1].classList.remove('now');box[i-1].classList.add('done')}
+  if(i<7){
+    box[i].classList.add('now');
+    $('pct').textContent=Math.round(((i+1)/7)*100)+'%';
+    $('ringEm').textContent=EMOJI[i];
+    i++;
+    setTimeout(step,1000);
+  }else{
+    $('pct').textContent='100%';
+    $('ringEm').textContent='🔓';
+    setTimeout(showWelcome,500);
+  }
+ };
+ step();
+}
+
+/* ================= ওয়েলকাম পপআপ ================= */
+function showWelcome(){
+ $('stage').classList.remove('on');
+ $('wel').classList.add('on');
+ $('wbtn').focus();
+}
+$('wbtn').onclick=()=>{location.href='/'};
+$('wel').addEventListener('keydown',e=>{if(e.key==='Enter')location.href='/'});
+
+/* ================= লগইন / রেজিস্টার ================= */
+async function go(){
+ const u=$('uid').value.trim().toLowerCase(), p=$('pw').value, g=$('go');
+ $('err').textContent='';
+ if(!u){fail(T('xid'));return}
+ if(p.length<4){fail(T('xpw'));return}
+ const old=g.textContent;
+ g.disabled=true; g.textContent=T('busy');
+ try{
+  const url=HAS_USERS?'/api/lock/verify':'/api/lock/register';
+  let r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({id:u,password:p})});
+  let j=await r.json();
+  if(!j.ok){fail('❌ '+(j.error||'ভুল ID/পাসওয়ার্ড'));return}
+  if(!HAS_USERS){
+   r=await fetch('/api/lock/verify',{method:'POST',headers:{'Content-Type':'application/json'},
+       body:JSON.stringify({id:u,password:p})});
+   j=await r.json();
+   if(!j.ok){fail(T('xagain'));return}
+  }
+  $('err').textContent='';
+  startStage();                       /* ⬅️ ৭ সেকেন্ডের অ্যানিমেশন শুরু */
+ }catch(e){fail(T('xnet')+' — '+e)}
+ finally{g.disabled=false;g.textContent=old}
+}
+$('go').onclick=go;
+$('pw').addEventListener('keydown',e=>{if(e.key==='Enter')go()});
+$('uid').addEventListener('keydown',e=>{if(e.key==='Enter')$('pw').focus()});
+$('uid').focus();
+</script>
+</body>
+</html>

@@ -1,0 +1,82 @@
+{
+  "locked_at": "2026-10-26 21:49:35",
+  "base": "D:\\ai manager",
+  "files": {
+    "app.py": {
+      "sha256": "7baa3c77f062acf21a8e514d6e417d98d5051eaf6d82a5b4ba0fe58affa9db6e",
+      "size": 182912
+    },
+    "generator.py": {
+      "sha256": "f89e7ea470518597aec3fbe7302529a1209f65946ffbb91e989df81d4dd2d874",
+      "size": 74075
+    },
+    "months.py": {
+      "sha256": "7eae8b3c2e0da15d22023d3451a89e44d34f7414b852c0a9734df6a6c663be36",
+      "size": 9796
+    },
+    "botmem.py": {
+      "sha256": "d12ea8fff58045c335fae89084cb7ef0f918f47b3e3dfdb128786b6e46059ef7",
+      "size": 9624
+    },
+    "cycle.py": {
+      "sha256": "c592de260701068dd626256c498e0269b2bbd2e792195d8df858a885418ecf2f",
+      "size": 8995
+    },
+    "reimport.py": {
+      "sha256": "4aba15a251a90b1fbb4336541bb0472724ffdf577a0d25b261507659c1926b8c",
+      "size": 8502
+    },
+    "dashboard.html": {
+      "sha256": "7ed34646830fbf38a60e6d99a58a0912671382628dd62fc68354ffd312f3559d",
+      "size": 271893
+    },
+    "workspace.html": {
+      "sha256": "4e83cafc1c5a156af45c518400fabc713354be2030bafa1594c9daa2d18eb820",
+      "size": 145564
+    },
+    "login.html": {
+      "sha256": "aac9499a2121e23129073a4175ef0155d2be9ccc28be45443183a506731b8b53",
+      "size": 25038
+    },
+    "dash.js": {
+      "sha256": "dddc35b327fd1e350e10263c09b6707bb429f99973da2bff2f797a4ac49d3286",
+      "size": 13681
+    },
+    "profit.js": {
+      "sha256": "0666ccb0e0f99eaa20536964b1c421bea9a699c353581b506afbb60226756c0f",
+      "size": 25089
+    },
+    "unified_add.js": {
+      "sha256": "1fea8f27c4569580e0b44d74540c57ea3dec5497505f246b0cf3542b336d9d60",
+      "size": 29259
+    },
+    "workspace.js": {
+      "sha256": "e71dece0301bf55d0aba58f90582b76b5aaf5a6c7a135719b3adfea23de9f6e8",
+      "size": 62178
+    },
+    "provider_config.json": {
+      "sha256": "7b37ea6c4a8e79d78997f3dcaac92d52020ee2d653dbcd498aa6d81d2a3c4990",
+      "size": 1150
+    },
+    "requirements.txt": {
+      "sha256": "b0a1e86b597bd5748ec36ba82e045c1554bb959d1d3565c6eb784c0d9437c186",
+      "size": 16
+    },
+    "start.bat": {
+      "sha256": "4aee2de021377781c99e2d0699508e5d4c432f4492d539d01e0336ed9fea1d08",
+      "size": 207
+    },
+    "AI_Time_Keeper_Start.bat": {
+      "sha256": "3078c4a6914799e3045717b65074355f68198e33f022a7b55126b052e9d6382c",
+      "size": 140
+    },
+    "input output\\Data sheet sep-26.xlsx": {
+      "sha256": "bbf474685a3c351897641782ff836a3897e19997caa687da1e7689881f0c40eb",
+      "size": 11264
+    },
+    "input output\\Total Master sheet.xlsx": {
+      "sha256": "cd0f129440c98c816b7d2d7f67080a5dcc06e8c276eb2d672976dd5ca191c4ba",
+      "size": 18695
+    }
+  }
+}

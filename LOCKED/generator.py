@@ -1,0 +1,1670 @@
+# AI Time Keeper — Excel generator
+# Data sheet (Table 1) -> Total T sheet (hubuhu format clone)
+import copy
+import calendar
+import json
+import os
+import re
+from datetime import datetime
+from openpyxl import load_workbook
+from openpyxl.styles import PatternFill, Color, Font
+
+
+def norm_person(s):
+    s = re.sub(r"\s*\(.*", "", str(s or ""))
+    s = re.sub(r"^(md|mohammad)\s+", "", s.strip(), flags=re.I)
+    return re.sub(r"[^a-z]", "", s.lower())
+
+
+def _xl_letter(n):
+    """1 -> 'A', 27 -> 'AA'."""
+    out = ""
+    while n > 0:
+        n, m = divmod(n - 1, 26)
+        out = chr(65 + m) + out
+    return out
+
+
+def _fmt_css_hex(rgb):
+    """'FFFF0000' -> 'FF0000'. None if not a plain rgb color."""
+    if isinstance(rgb, str) and re.fullmatch(r"[0-9A-Fa-f]{8}", rgb) and rgb != "00000000":
+        return rgb[2:].upper()
+    return None
+
+
+def cell_format(cell):
+    """Read Excel formatting as dashboard fmt {b,i,u,al,sz,bg,fg}."""
+    fmt = {}
+    try:
+        if cell.font:
+            if cell.font.bold:
+                fmt["b"] = 1
+            if cell.font.italic:
+                fmt["i"] = 1
+            if cell.font.underline not in (None, "none"):
+                fmt["u"] = 1
+            try:
+                sz = float(cell.font.sz) if cell.font.sz else 11.0
+                if abs(sz - 11.0) > 0.01:
+                    fmt["sz"] = sz
+            except Exception:
+                pass
+    except Exception:
+        pass
+    try:
+        al = cell.alignment.horizontal if cell.alignment else None
+        if al in ("left", "center", "right"):
+            fmt["al"] = al
+        alv = cell.alignment.vertical if cell.alignment else None
+        if alv in ("top", "center", "bottom"):
+            fmt["alv"] = alv
+        if cell.alignment and cell.alignment.wrap_text:
+            fmt["wrap"] = 1
+    except Exception:
+        pass
+    try:
+        fnm = cell.font.name if cell.font else None
+        if fnm and fnm != "Calibri":
+            fmt["fn"] = fnm
+    except Exception:
+        pass
+    try:
+        nf = cell.number_format if cell.number_format else "General"
+        if nf != "General":
+            fmt["num"] = nf
+    except Exception:
+        pass
+    try:
+        b = cell.border
+        if b and any(getattr(b, s) and getattr(b, s).style for s in ("left", "right", "top", "bottom")):
+            fmt["bd"] = 1
+    except Exception:
+        pass
+    try:
+        f = cell.fill
+        if f and f.patternType == "solid":
+            bg = _fmt_css_hex(getattr(f.fgColor, "rgb", None))
+            if bg:
+                fmt["bg"] = bg
+    except Exception:
+        pass
+    try:
+        col = cell.font.color if cell.font else None
+        fg = _fmt_css_hex(getattr(col, "rgb", None)) if col is not None else None
+        if fg and fg != "000000":
+            fmt["fg"] = fg
+    except Exception:
+        pass
+    return fmt
+
+
+def apply_format(cell, fmt):
+    """Apply dashboard fmt {b,i,u,al,sz,bg,fg} onto an Excel cell."""
+    if not fmt:
+        return
+    try:
+        f = copy.copy(cell.font)
+        if fmt.get("b"):
+            f.bold = True
+        if fmt.get("i"):
+            f.italic = True
+        if fmt.get("u"):
+            f.underline = "single"
+        if fmt.get("sz"):
+            try:
+                f.sz = float(fmt["sz"])
+            except Exception:
+                pass
+        if fmt.get("fn"):
+            try:
+                f.name = str(fmt["fn"])[:40]
+            except Exception:
+                pass
+        if fmt.get("fg") and re.fullmatch(r"[0-9A-Fa-f]{6}", str(fmt["fg"])):
+            f.color = Color(rgb="FF" + str(fmt["fg"]).upper())
+        cell.font = f
+        if fmt.get("al") in ("left", "center", "right") or fmt.get("alv") in ("top", "center", "bottom") or fmt.get("wrap"):
+            a = copy.copy(cell.alignment)
+            if fmt.get("al") in ("left", "center", "right"):
+                a.horizontal = fmt["al"]
+            if fmt.get("alv") in ("top", "center", "bottom"):
+                a.vertical = fmt["alv"]
+            if fmt.get("wrap"):
+                a.wrap_text = True
+            cell.alignment = a
+        if fmt.get("bg") and re.fullmatch(r"[0-9A-Fa-f]{6}", str(fmt["bg"])):
+            cell.fill = PatternFill("solid", fgColor="FF" + str(fmt["bg"]).upper())
+        if fmt.get("bd"):
+            from openpyxl.styles import Border as _B, Side as _S
+            try:
+                thin = _S(style="thin", color=Color(rgb="FF000000"))
+                cell.border = _B(left=thin, right=thin, top=thin, bottom=thin)
+            except Exception:
+                pass
+        if fmt.get("num"):
+            try:
+                cell.number_format = str(fmt["num"])[:40]
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+DATA_SHEET_NAME = "Table 1"
+MASTER_SHEET_TITLE = "Total grand balance"
+GRAND_SHEET_NAMES = {"Total grand balance", "Master Sheet"}
+
+
+def grand_sheet(wb):
+    """The summary sheet, old or new name."""
+    for sn in wb.sheetnames:
+        if sn in GRAND_SHEET_NAMES:
+            return wb[sn]
+    raise KeyError("summary sheet not found")
+
+# Provider in Data -> (daily sheet name in template, reference header text in grand balance)
+PROVIDER_MAP = {
+    "mr.nur": ("Nur vai", "Refarenc of ( Mr. Nur )"),
+    "mr.jalil": (None, "Refarenc of ( Jalil )"),  # no daily sheet, grand only
+    "mr.abzol": ("Abzol vai", "Refarenc of (Abzol )"),
+    "mr.somuj": ("Somuj ", "Refarenc of somuj vai )"),
+    "somuj": ("Somuj ", "Refarenc of somuj vai )"),
+    # spelling variants seen in the data sheets -> same sheet + same master ref
+    "mr.samuj": ("Somuj ", "Refarenc of somuj vai )"),
+    "samuj": ("Somuj ", "Refarenc of somuj vai )"),
+    "mr.samul": ("Somuj ", "Refarenc of somuj vai )"),
+    "mr.samil": ("Somuj ", "Refarenc of somuj vai )"),
+    "mr.shomuj": ("Somuj ", "Refarenc of somuj vai )"),
+    "mr.shihab": ("Mr.Shihab", "Refarenc of ( Mr. Shihab )"),
+    "mr.shibab": ("Mr.Shibab", "Refarenc of ( Mr. Shihab )"),
+    "mr.amin": ("Mr.Amin", "Refarenc of ( Mr. Amin )"),
+}
+
+PROVIDER_CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "provider_config.json")
+
+
+def load_provider_config():
+    """Provider config dict {key: {"sheet": ..., "header": ...}}.
+
+    Reads provider_config.json next to this module. Falls back to the
+    hardcoded PROVIDER_MAP (converted to dict form) if the file is missing
+    or malformed, so the generator never breaks because of a bad config.
+    """
+    try:
+        with open(PROVIDER_CONFIG_FILE, encoding="utf-8") as f:
+            cfg = json.load(f)
+        if isinstance(cfg, dict):
+            return cfg
+    except Exception:
+        pass
+    return {k: {"sheet": v[0], "header": v[1]} for k, v in PROVIDER_MAP.items()}
+
+
+def provider_lookup(prov_key):
+    """(sheet_name, header_text) for a provider key.
+
+    Config first; (None, None) when the key is unknown. A configured entry
+    with sheet: null means grand-only (e.g. mr.jalil).
+    """
+    entry = load_provider_config().get(prov_key)
+    if entry is None:
+        return (None, None)
+    return (entry.get("sheet"), entry.get("header"))
+
+
+ZERO_TOKENS = {"A", "S", "SUNDAY", "SUN", "ABSENT", "OFF", "H", "L", "-"}
+
+
+def norm_provider(p):
+    if not p:
+        return ""
+    return re.sub(r"\s+", " ", str(p).strip().lower())
+
+
+def is_zero_token(v):
+    if v is None:
+        return True
+    if isinstance(v, (int, float)):
+        return False
+    s = str(v).strip().upper()
+    return s == "" or s in ZERO_TOKENS
+
+
+def to_hours(v):
+    """Numeric -> float, A/S/SUNDAY/empty -> 0.0 (for totals). Returns (hours, display_value)."""
+    if v is None:
+        return 0.0, None
+    if isinstance(v, (int, float)):
+        return float(v), v
+    s = str(v).strip()
+    if s == "":
+        return 0.0, None
+    if s.upper() in ZERO_TOKENS:
+        return 0.0, s  # keep original token for display (A/S)
+    try:
+        f = float(s)
+        return f, f
+    except ValueError:
+        return 0.0, s
+
+
+def copy_style(src, dst):
+    dst.font = copy.copy(src.font)
+    dst.fill = copy.copy(src.fill)
+    dst.border = copy.copy(src.border)
+    dst.alignment = copy.copy(src.alignment)
+    dst.number_format = src.number_format
+    dst.protection = copy.copy(src.protection)
+
+
+def copy_cell_structure(src, dst):
+    """Copy layout only (border/alignment/number format); reset font+fill.
+
+    Copying full styles row-to-row spreads one worker's red A-cells down the
+    whole day column, so Data saves must never copy fill/font here.
+    """
+    dst.border = copy.copy(src.border)
+    dst.alignment = copy.copy(src.alignment)
+    dst.number_format = src.number_format
+    dst.font = Font()
+    dst.fill = PatternFill()
+
+
+def _header_text(v):
+    if v is None:
+        return ""
+    if isinstance(v, bool):
+        return ""
+    if isinstance(v, (int, float)):
+        return str(int(v)) if float(v).is_integer() else str(v)
+    return re.sub(r"\s+", " ", str(v).strip().lower())
+
+
+def locate_data_table(ws):
+    """Find the Data table by its headers (not fixed columns).
+
+    Returns mapping {header_row, first_row, sn, provider, name, days:{day:col},
+    total_h, rate, total_sy, advance, gas, grand} or None (caller uses legacy layout).
+    """
+    max_c = min(ws.max_column, 60)
+    for r in range(1, min(12, ws.max_row + 1)):
+        cells = {}
+        for c in range(1, max_c + 1):
+            t = _header_text(ws.cell(r, c).value)
+            if t:
+                cells[c] = t
+        if not cells:
+            continue
+        joined = " ".join(cells.values())
+        has_sn = any(t in ("sn", "sl", "sl.no", "sl no", "s.no", "s no") for t in cells.values())
+        if not (has_sn and "worker" in joined and "name" in joined):
+            continue
+        m = {"header_row": r, "first_row": r + 1, "sn": None, "provider": None,
+             "name": None, "days": {}, "total_h": None, "rate": None,
+             "site_rate": None,
+             "total_sy": None, "advance": None, "gas": None, "grand": None}
+        for c, t in cells.items():
+            if t in ("sn", "sl", "sl.no", "sl no", "s.no", "s no"):
+                m["sn"] = m["sn"] or c
+            elif "provider" in t or "supplier" in t or "refarenc" in t or "reference" in t:
+                m["provider"] = m["provider"] or c
+            elif "worker" in t or t == "name":
+                m["name"] = m["name"] or c
+            elif re.fullmatch(r"\d+(\.0+)?", t) and 1 <= int(float(t)) <= 31:
+                m["days"].setdefault(int(float(t)), c)
+            elif "grand" in t:
+                m["grand"] = m["grand"] or c
+            elif "total sy" in t or ("total" in t and "sy" in t):
+                m["total_sy"] = m["total_sy"] or c
+            elif "advance" in t:
+                m["advance"] = m["advance"] or c
+            elif "gas" in t:
+                m["gas"] = m["gas"] or c
+            elif "site rate" in t or "sell rate" in t or "salerate" in t:
+                m["site_rate"] = m["site_rate"] or c
+            elif "rate" in t or "p,h" in t or "per h" in t or "par h" in t:
+                m["rate"] = m["rate"] or c
+            elif t.startswith("total"):
+                m["total_h"] = m["total_h"] or c
+        if m["name"] and len(m["days"]) >= 28:
+            return m
+    return None
+
+
+def detect_data_month(ws):
+    """Month/year hint from the sheet (A1 date like 9/26/2026). Returns {month, year} or None."""
+    for r in range(1, 6):
+        for c in range(1, 6):
+            v = ws.cell(r, c).value
+            if isinstance(v, datetime):
+                return {"month": v.month, "year": v.year}
+    return None
+
+
+def _num_or_none(v):
+    if v in (None, ""):
+        return None
+    if isinstance(v, bool):
+        return None
+    if isinstance(v, (int, float)):
+        return float(v)
+    try:
+        return float(str(v).strip().replace(",", ""))
+    except (ValueError, TypeError):
+        return None
+
+
+def _build_worker(sn, prov_raw, name, days, rate_v, adv_v, gas_v, r, site_rate_v=None):
+    rate = _num_or_none(rate_v)
+    site_rate = _num_or_none(site_rate_v)
+    adv = _num_or_none(adv_v)
+    gas = _num_or_none(gas_v)
+    total_h = round(sum(to_hours(v)[0] for v in days), 2)
+    total_aed = round(total_h * rate, 2) if (rate is not None and total_h) else None
+    site_total = round(total_h * site_rate, 2) if (site_rate is not None and total_h) else None
+    profit = round(site_total - total_aed, 2) if (site_total is not None and total_aed is not None) else None
+    grand = round(total_aed - (adv or 0.0) - (gas or 0.0), 2) if total_aed is not None else None
+    return {
+        "sn": sn, "provider_raw": prov_raw, "provider_key": norm_provider(prov_raw),
+        "site_rate": site_rate, "site_total": site_total, "profit": profit,
+        "name": name, "days": days, "total_h": total_h, "rate": rate,
+        "total_aed": total_aed, "advance": adv if adv else 0.0, "gas": gas if gas else 0.0,
+        "grand": grand, "row": r,
+    }
+
+
+def _parse_with_mapping(ws, m):
+    workers = []
+    last_provider = ""
+    for r in range(m["first_row"], ws.max_row + 1):
+        sn = ws.cell(r, m["sn"]).value if m["sn"] else None
+        prov = ws.cell(r, m["provider"]).value if m["provider"] else None
+        name = ws.cell(r, m["name"]).value if m["name"] else None
+        if prov is not None and str(prov).strip() != "":
+            last_provider = str(prov).strip()
+        if name is None or str(name).strip() == "":
+            continue
+        days = [(ws.cell(r, m["days"][d]).value if d in m["days"] else "") for d in range(1, 32)]
+        workers.append(_build_worker(
+            sn, last_provider, str(name).strip(), days,
+            ws.cell(r, m["rate"]).value if m["rate"] else None,
+            ws.cell(r, m["advance"]).value if m["advance"] else None,
+            ws.cell(r, m["gas"]).value if m["gas"] else None, r,
+            ws.cell(r, m["site_rate"]).value if m["site_rate"] else None))
+    return workers
+
+
+def _parse_legacy(ws):
+    workers = []
+    last_provider = ""
+    for r in range(3, ws.max_row + 1):
+        sn = ws.cell(r, 1).value
+        prov = ws.cell(r, 2).value
+        name = ws.cell(r, 3).value
+        if prov is not None and str(prov).strip() != "":
+            last_provider = str(prov).strip()
+        if name is None or str(name).strip() == "":
+            continue
+        days = [ws.cell(r, c).value for c in range(4, 35)]
+        workers.append(_build_worker(
+            sn, last_provider, str(name).strip(), days,
+            ws.cell(r, 36).value, ws.cell(r, 38).value, ws.cell(r, 39).value, r,
+            ws.cell(r, 37).value))
+    return workers
+
+
+def validate_workers(workers):
+    """Deep-accuracy checks. Returns Bengali warning strings."""
+    warns = []
+    seen = {}
+    for w in workers:
+        seen[w["name"]] = seen.get(w["name"], 0) + 1
+        for d, v in enumerate(w["days"], 1):
+            if v is None:
+                continue
+            if isinstance(v, bool):
+                warns.append(f"{w['name']}: {d} তারিখে অচেনা মান (০ ধরা হয়েছে)")
+                continue
+            if isinstance(v, (int, float)):
+                if v < 0:
+                    warns.append(f"{w['name']}: {d} তারিখে মাইনাস ঘণ্টা ({v}) — ঠিক আছে?")
+                elif v > 16:
+                    warns.append(f"{w['name']}: {d} তারিখে {v} ঘণ্টা — অনেক বেশি, ঠিক আছে?")
+                continue
+            s = str(v).strip()
+            if s == "" or s.upper() in ZERO_TOKENS:
+                continue
+            try:
+                f = float(s.replace(",", ""))
+                if f < 0:
+                    warns.append(f"{w['name']}: {d} তারিখে মাইনাস ঘণ্টা ({s}) — ঠিক আছে?")
+                elif f > 16:
+                    warns.append(f"{w['name']}: {d} তারিখে {s} ঘণ্টা — অনেক বেশি, ঠিক আছে?")
+            except ValueError:
+                warns.append(f"{w['name']}: {d} তারিখে অচেনা লেখা '{s}' (০ ধরা হয়েছে)")
+        if w["total_h"] and w["rate"] is None:
+            warns.append(f"{w['name']}: {w['total_h']} ঘণ্টা আছে কিন্তু Rate খালি")
+        if not w["total_h"] and (w["advance"] or w["gas"]):
+            warns.append(f"{w['name']}: ঘণ্টা ০ কিন্তু Advance/Gas আছে — Grand মাইনাস হবে")
+    for name, cnt in seen.items():
+        if cnt > 1:
+            _p = []
+            for w in workers:
+                if w["name"] == name:
+                    _pr = str(w.get("provider_raw") or "").strip() or "(খালি)"
+                    if _pr not in _p:
+                        _p.append(_pr)
+            # ভিন্ন গ্রুপে হলে _check_provider_blocks আলাদাভাবে বলে — দুইবার বলা হবে না
+            if len(_p) > 1:
+                continue
+            warns.append(f"ডুপ্লিকেট নাম: {name} ({cnt} বার) — গ্রুপ: "
+                         f"{_p[0] if _p else '(খালি)'}")
+    return warns
+
+
+def _check_provider_blocks(ws, m, workers):
+    """মার্জ-করা Provider ঘরের সতর্কতা — ভাঙা মার্জ চুপিচুপি লোক বদলে দেয়,
+    কোনো এরর ছাড়াই ভুল গ্রুপে চলে যায়। সেটা ধরতে দুটি চেক।"""
+    warns = []
+    if not m or not m.get("provider"):
+        return warns
+    pcol = m["provider"]
+    first = m.get("first_row") or 1
+    named_rows = {w.get("row") for w in workers}
+
+    # ১. প্রোভাইডার-ঘর আছে কিন্তু তার নিচে কোনো লোক নেই
+    labels = []
+    for r in range(first, (ws.max_row or first) + 1):
+        v = ws.cell(r, pcol).value
+        if v is not None and str(v).strip():
+            labels.append((r, str(v).strip()))
+    for i, (r, lab) in enumerate(labels):
+        end = (labels[i + 1][0] - 1) if i + 1 < len(labels) else (ws.max_row or r)
+        if not any(x in named_rows for x in range(r, end + 1)):
+            warns.append(
+                "প্রোভাইডার '%s' (সারি %d) — কোনো লোক নেই। "
+                "Provider ঘর ভাঙা থাকতে পারে; ঘরটি খালি করে দিন" % (lab, r))
+
+    # ২. একই নাম দুইটা ভিন্ন গ্রুপে — ভাঙা মার্জের লক্ষণ
+    byname = {}
+    for w in workers:
+        byname.setdefault(w["name"], []).append(w)
+    for name, grp in byname.items():
+        provs = []
+        for w in grp:
+            p = str(w.get("provider_raw") or "").strip() or "(খালি)"
+            if p not in provs:
+                provs.append(p)
+        if len(provs) > 1:
+            warns.append(
+                "একই নাম '%s' দুইটা গ্রুপে আছে: %s — Provider ঘর ভাঙা থাকতে পারে"
+                % (name, " / ".join(provs)))
+    return warns
+
+
+def _check_declared_providers(workers):
+    """provider_config.json-এ "active": true করা প্রোভাইডার কিন্তু শিটে কোনো
+    লোক নেই — প্রোভাইডার-ঘর পুরোপুরি হারিয়ে গেলেও এটা ধরে।
+
+    শুধু "active" করা গুলোতেই চলে, তাই অব্যবহৃত প্রোভাইডারে মিথ্যা সতর্কতা
+    আসে না। বানানের বিভ্রম (mr.somuj / samuj / mr.samul …) একই পরিবার —
+    যেকোনো একটা থাকলেই ঠিক ধরা হয়।"""
+    warns = []
+    try:
+        cfg = load_provider_config()
+    except Exception:
+        return warns
+    if not isinstance(cfg, dict):
+        return warns
+
+    present = {str(w.get("provider_key") or "").strip() for w in workers}
+    present.discard("")
+
+    # একই শিট/হেডারে যারা যায় তারা এক পরিবার
+    families = {}
+    for key, val in cfg.items():
+        if not isinstance(val, dict):
+            continue
+        fam = str(val.get("sheet") or val.get("header") or key)
+        families.setdefault(fam, []).append(str(key).strip().lower())
+
+    for fam, keys in families.items():
+        actives = [k for k in keys
+                   if isinstance(cfg.get(k), dict) and cfg[k].get("active")]
+        if not actives:
+            continue
+        if present & set(keys):
+            continue
+        label = str(next((cfg[k].get("sheet") for k in actives
+                          if cfg[k].get("sheet")),
+                         actives[0] if actives else fam))
+        warns.append(
+            "প্রোভাইডার '%s' provider_config.json-এ সক্রিয়, কিন্তু শিটে "
+            "কোনো লোক নেই — Provider ঘর হারিয়ে গেছে কিনা দেখুন" % label)
+    return warns
+
+
+def _parse_horizontal_onedrive(ws):
+    """Parse OneDrive horizontal format: 4 provider groups side by side.
+    R2: provider names (NOR, jalil, Abzol, Somuj)
+    R4: headers (Name, duty St Date, Buy of Per Hour, Duty now Running)
+    R5+: data rows per group
+    """
+    workers = []
+    # Detect horizontal format: R2 has provider names at specific columns
+    r2_vals = {}
+    for c in range(1, min(ws.max_column, 60) + 1):
+        v = ws.cell(2, c).value
+        if v and str(v).strip():
+            r2_vals[c] = str(v).strip()
+    
+    # Check for known provider markers in R2
+    provider_cols = {}
+    for c, v in r2_vals.items():
+        vl = v.lower()
+        if "nor" in vl or "nur" in vl:
+            provider_cols["mr.nur"] = c
+        elif "jalil" in vl:
+            provider_cols["mr.jalil"] = c
+        elif "abzol" in vl:
+            provider_cols["mr.abzol"] = c
+        elif "somuj" in vl:
+            provider_cols["mr.somuj"] = c
+    
+    if len(provider_cols) < 2:
+        return None  # Not this format
+    
+    # R4 headers define column structure per group
+    # Each group: Name, duty St Date, Buy of Per Hour, Duty now Running (4 cols + 1 gap)
+    groups = []
+    for prov_key, prov_col in provider_cols.items():
+        # Find the Name column for this provider (usually prov_col or nearby)
+        name_col = None
+        date_col = None
+        rate_col = None
+        site_col = None
+        for c in range(max(1, prov_col-2), min(ws.max_column, prov_col+5) + 1):
+            v = ws.cell(4, c).value
+            if v:
+                t = str(v).strip().lower()
+                if t == "name" or "name" in t:
+                    name_col = c
+                elif "duty" in t and "st" in t and "date" in t:
+                    date_col = c
+                elif "buy" in t and "hour" in t:
+                    rate_col = c
+                elif "duty" in t and "running" in t:
+                    site_col = c
+        if name_col:
+            groups.append({
+                "provider_key": prov_key,
+                "name_col": name_col,
+                "date_col": date_col,
+                "rate_col": rate_col,
+                "site_col": site_col,
+            })
+    
+    if len(groups) < 2:
+        return None
+    
+    # Parse data rows (R5 onwards)
+    for r in range(5, ws.max_row + 1):
+        for g in groups:
+            name = ws.cell(r, g["name_col"]).value
+            if not name or str(name).strip() == "":
+                continue
+            name = str(name).strip()
+            # duty St Date
+            duty_date = ws.cell(r, g["date_col"]).value if g["date_col"] else None
+            # Buy of Per Hour = rate
+            rate_v = ws.cell(r, g["rate_col"]).value if g["rate_col"] else None
+            # Site info (not used for hours)
+            # Hours are not in this format - we'll need to infer or leave empty
+            # For now, create worker with empty days (will be filled from daily sheets later)
+            workers.append(_build_worker(
+                sn=None,
+                prov_raw=g["provider_key"],
+                name=name,
+                days=[""] * 31,
+                rate_v=rate_v,
+                adv_v=None,
+                gas_v=None,
+                r=r,
+                site_rate_v=None
+            ))
+    return workers
+
+
+def analyze_data_sheet(data_path):
+    """Full accurate read: workers + validation warnings + month hint."""
+    wb = load_workbook(data_path, data_only=True)
+    ws = wb[DATA_SHEET_NAME] if DATA_SHEET_NAME in wb.sheetnames else wb[wb.sheetnames[0]]
+    
+    # Try standard vertical format first
+    m = locate_data_table(ws)
+    if m:
+        workers = _parse_with_mapping(ws, m)
+    else:
+        # Try OneDrive horizontal format
+        workers = _parse_horizontal_onedrive(ws)
+        if workers is None:
+            workers = _parse_legacy(ws)
+    
+    meta = detect_data_month(ws)
+    warnings = validate_workers(workers)
+    if m:
+        warnings += _check_provider_blocks(ws, m, workers)
+    warnings += _check_declared_providers(workers)
+    wb.close()
+    return {"workers": workers, "warnings": warnings, "meta": meta, "mapped": bool(m)}
+
+
+def parse_data_sheet(data_path):
+    """Returns list of workers (same as before)."""
+    return analyze_data_sheet(data_path)["workers"]
+
+
+def detect_month_year(workers_days_sheet=None, default=(2026, 9)):
+    """Try to detect month from daily sheets later; fallback to default. Dashboard passes explicit month."""
+    return default
+
+
+def generate_total_sheet(data_path, template_path, output_path, month=9, year=2026, site_rates=None, duty_data=None):
+    workers = parse_data_sheet(data_path)
+    # group by provider preserving order
+    groups = []  # [(provider_raw, provider_key, [workers])]
+    idx = {}
+    for w in workers:
+        k = w["provider_key"]
+        if k not in idx:
+            idx[k] = len(groups)
+            groups.append((w["provider_raw"], k, []))
+        groups[idx[k]][2].append(w)
+
+    # zero-hour workers: keep totals empty (hubuhu template shows blank, not 0)
+    for w in workers:
+        if not w["total_h"]:
+            w["total_aed"] = None
+            w["grand"] = None
+
+    wb = load_workbook(template_path)
+    month_name = calendar.month_abbr[month].upper()
+    num_days = calendar.monthrange(year, month)[1]
+
+    # মাস্টারের নিজের তারিখ-ফরম্যাট মনে রাখি — নতুন ফরম্যাট বসাবো না।
+    # মাস্টারের দৈনিক শীটের তারিখ কলাম থেকে পড়ি (যেমন yyyy\-mm\-dd)।
+    date_fmt = None
+    for _sn in wb.sheetnames:
+        if "grand" in _sn.lower():
+            continue
+        _ws = wb[_sn]
+        for _r in range(3, min(40, (_ws.max_row or 3) + 1)):
+            _c = _ws.cell(_r, 2)
+            if isinstance(_c.value, datetime) and _c.number_format not in (None, "", "General"):
+                date_fmt = _c.number_format
+                break
+        if date_fmt:
+            break
+    if not date_fmt:
+        date_fmt = "YYYY-MM-DD"
+
+    # Template style samples: red bg ONLY for absent (A), red text for SUNDAY,
+    # plain for normal numbers. Stale template fills must not leak onto new values.
+    def _sample_day_styles(ws):
+        absent = normal = sunday = None
+        for rr in range(4, 35):
+            for cc in range(3, ws.max_column + 1):
+                v = ws.cell(rr, cc).value
+                if isinstance(v, str):
+                    s = v.strip().upper()
+                    if s == "A" and absent is None:
+                        absent = (copy.copy(ws.cell(rr, cc).fill), copy.copy(ws.cell(rr, cc).font))
+                    elif s == "SUNDAY" and sunday is None:
+                        sunday = (copy.copy(ws.cell(rr, cc).fill), copy.copy(ws.cell(rr, cc).font))
+                elif isinstance(v, (int, float)) and normal is None:
+                    normal = (copy.copy(ws.cell(rr, cc).fill), copy.copy(ws.cell(rr, cc).font))
+                if absent and normal and sunday:
+                    return absent, normal, sunday
+        return absent, normal, sunday
+
+    _g_absent, _g_normal, _g_sunday = _sample_day_styles(wb["Nur vai"])
+    _style_cache = {}
+
+    def _ensure_styles(ws):
+        if ws.title not in _style_cache:
+            own = _sample_day_styles(ws)
+            _style_cache[ws.title] = {
+                "absent": own[0] or _g_absent, "normal": own[1] or _g_normal,
+                "sunday": own[2] or _g_sunday}
+
+    # Pre-sample BEFORE any writes. Sampling lazily after partial writes would
+    # mistake a just-written value's stale fill for the style sample.
+    for _sn in wb.sheetnames:
+        if _sn not in GRAND_SHEET_NAMES:
+            _ensure_styles(wb[_sn])
+
+    RED_ABSENT_FILL = PatternFill("solid", fgColor="FFFF0000")
+
+    def _paint_day_cell(ws, r, c, kind):
+        # kind: "absent" | "sunday" | "normal"
+        _ensure_styles(ws)
+        samp = _style_cache.get(ws.title, {}).get(kind)
+        try:
+            if samp is not None:
+                ws.cell(r, c).fill = copy.copy(samp[0])
+                ws.cell(r, c).font = copy.copy(samp[1])
+            # Strict universal rules:
+            # 1. Absent (A): background is ALWAYS solid red (FFFF0000)
+            if kind == "absent":
+                ws.cell(r, c).fill = copy.copy(RED_ABSENT_FILL)
+            # 2. Sunday (SUNDAY): text is ALWAYS red (FFFF0000)
+            elif kind == "sunday":
+                f = copy.copy(ws.cell(r, c).font)
+                f.color = Color(rgb="FFFF0000")
+                ws.cell(r, c).font = f
+        except (AttributeError, TypeError):
+            pass
+
+    # ---- 1) Update / create daily sheets per provider group ----
+    _used_sheets = set()
+    # Style donor for the row-37 "TOTAL HOURS - " yellow bar. Some template
+    # sheets (e.g. Somuj) have no bar at all, so one is copied from a sheet
+    # that does have it before anything is written.
+    _bar_donor = None
+    for _sn in wb.sheetnames:
+        if _sn in GRAND_SHEET_NAMES:
+            continue
+        _s = wb[_sn]
+        for _m in list(_s.merged_cells.ranges):
+            if _m.min_row <= 37 <= _m.max_row and _s.cell(_m.min_row, _m.min_col).value:
+                _c37 = _s.cell(37, _m.min_col)
+                _bar_donor = (copy.copy(_c37.fill), copy.copy(_c37.font),
+                              copy.copy(_c37.alignment), copy.copy(_c37.border))
+                break
+        if _bar_donor:
+            break
+    # বর্ডার না থাকলে কাল ফুল-বক্স বানিয়ে নিই, যাতে হলুদ বারের
+    # চারদিকেই কাল রেখা থাকে
+    if _bar_donor is None:
+        from openpyxl.styles import Border as _Bd, Side as _Sd
+        _k = _Sd(style="thin", color="FF000000")
+        _bar_donor = (PatternFill("solid", fgColor="FFFFFF00"),
+                      copy.copy(wb[wb.sheetnames[0]].cell(1, 1).font),
+                      None, _Bd(left=_k, right=_k, top=_k, bottom=_k))
+    _B_FILL, _B_FONT, _B_ALIGN, _B_BORDER = _bar_donor
+
+    def _write_total_hours_bar(ws, wlist):
+        """Row 37: 'TOTAL HOURS - <sum of the sheet>' inside the yellow bar."""
+        total = sum(float(w.get("total_h") or 0) for w in wlist)
+        txt = ("%g" % round(total, 2)) if total else "0"
+        bar = None
+        for mr in list(ws.merged_cells.ranges):
+            if mr.min_row <= 37 <= mr.max_row:
+                bar = mr
+                break
+        if bar is None:
+            last = max(3 + len(wlist) - 1, 2)
+            try:
+                ws.merge_cells(start_row=37, start_column=1, end_row=37, end_column=last)
+            except Exception:
+                pass
+            # মার্জের ভেতরের প্রতিটি ঘরেই ফিল+বর্ডার দিতে হয়, তা না হলে
+            # ডান-নিচের দিকে কাল রেখা আঁকা হয় না
+            for c in range(1, last + 1):
+                _c = ws.cell(37, c)
+                if _c.__class__.__name__ == "MergedCell":
+                    continue
+                _c.fill = copy.copy(_B_FILL)
+                _c.font = copy.copy(_B_FONT)
+                if _B_ALIGN is not None:
+                    _c.alignment = copy.copy(_B_ALIGN)
+                _c.border = copy.copy(_B_BORDER)
+            cell = ws.cell(37, 1)
+        else:
+            cell = ws.cell(bar.min_row, bar.min_col)
+            if cell.fill is None or cell.fill.patternType is None:
+                cell.fill = copy.copy(_B_FILL)
+            if _B_BORDER is not None:
+                cell.border = copy.copy(_B_BORDER)
+            # মার্জের প্রতিটি ঘরে ফিল দিই, যাতে পুরো বার হলুদ হয়
+            for c in range(bar.min_col, bar.max_col + 1):
+                _c = ws.cell(bar.min_row, c)
+                if _c.__class__.__name__ == "MergedCell":
+                    continue
+                if _c.fill is None or _c.fill.patternType is None:
+                    _c.fill = copy.copy(_B_FILL)
+        try:
+            cell.value = "TOTAL HOURS - " + txt
+        except AttributeError:
+            pass
+
+    for prov_raw, prov_key, wlist in groups:
+        _cfg = load_provider_config()
+        sheet_name, ref_text = provider_lookup(prov_key)
+        # explicit None mapping (e.g. mr.jalil) = grand-only, no daily sheet
+        if prov_key in _cfg and sheet_name is None:
+            continue
+        # find sheet by worker-name overlap if mapping missing
+        target_ws = None
+        is_new_sheet = False
+        if sheet_name and sheet_name in wb.sheetnames:
+            target_ws = wb[sheet_name]
+        else:
+            # search sheet with max name overlap
+            best, best_score = None, 0
+            names = {w["name"].upper() for w in wlist}
+            for sn in wb.sheetnames:
+                if sn in GRAND_SHEET_NAMES:
+                    continue
+                ws = wb[sn]
+                # header row2 col C.. : worker names
+                sheet_names = set()
+                for c in range(3, ws.max_column + 1):
+                    v = ws.cell(2, c).value
+                    if v:
+                        sheet_names.add(str(v).strip().upper())
+                score = len(names & sheet_names)
+                if score > best_score:
+                    best, best_score = ws, score
+            if best_score > 0:
+                target_ws = best
+                sheet_name = best.title
+            else:
+                # clone "Nur vai" as template for new provider
+                src = wb["Nur vai"]
+                new_title = (prov_raw or "New").strip()[:28] or "New Provider"
+                # avoid collision
+                base = new_title
+                i = 2
+                while new_title in wb.sheetnames:
+                    new_title = f"{base} {i}"
+                    i += 1
+                target_ws = wb.copy_worksheet(src)
+                target_ws.title = new_title
+                sheet_name = new_title
+                is_new_sheet = True
+                if src.title in _style_cache:
+                    _style_cache[new_title] = {
+                        "absent": _style_cache[src.title]["absent"],
+                        "normal": _style_cache[src.title]["normal"],
+                        "sunday": _style_cache[src.title]["sunday"],
+                    }
+
+        # header row2: write worker names starting col C
+        # keep existing columns that match, overwrite in order of wlist
+        # Style donor: last real worker column of the template, captured BEFORE
+        # any write, so months with more workers than the template still look
+        # exactly like the hubuhu format.
+        tmpl_worker_cols = [
+            c for c in range(3, target_ws.max_column + 1)
+            if str(target_ws.cell(3, c).value or "").strip().upper().startswith("DUTY")
+        ]
+        donor = tmpl_worker_cols[-1] if tmpl_worker_cols else 3
+        donor_styles = {
+            rr: (
+                copy.copy(target_ws.cell(rr, donor)._style),
+                copy.copy(target_ws.cell(rr, donor).number_format),
+            )
+            for rr in range(1, min(target_ws.max_row, 40) + 1)
+        }
+        for j, w in enumerate(wlist):
+            col = 3 + j
+            cell = target_ws.cell(2, col)
+            cell.value = w["name"]
+            if col > donor and col not in tmpl_worker_cols:
+                # brand-new column -> dress it like a template worker column
+                for rr, (st, nf) in donor_styles.items():
+                    try:
+                        nc = target_ws.cell(rr, col)
+                        nc._style = copy.copy(st)
+                        nc.number_format = nf
+                    except AttributeError:
+                        pass
+                if str(target_ws.cell(3, col).value or "").strip().upper() != "DUTY H":
+                    target_ws.cell(3, col).value = "Duty H"
+        # ---- WIPE leftover worker columns left over from the template ----
+        # Clearing only row2 (the name) is NOT enough: the previous month's
+        # daily hours and its TOTAL stay in the column and silently inflate
+        # the sheet. The whole column must be emptied — মান সাথে স্টাইলও।
+        # (স্টাইলসহ খালি কলাম দেখা যায় "অতিরিক্ত খালি কলাম" — সবুজ/নীল
+        # পটভূমিতে জমে থাকে, যেটা মাস্টার থেকে আসা পুরোনো লোকের চারা)
+        from openpyxl.styles import PatternFill as _PF, Border as _BD, Font as _FT, Alignment as _AL
+        last_used = 3 + max(0, len(wlist)) - 1
+        for c in range(last_used + 1, target_ws.max_column + 1):
+            hdr2 = str(target_ws.cell(2, c).value or "").strip().upper()
+            hdr3 = str(target_ws.cell(3, c).value or "").strip().upper()
+            is_worker_col = hdr3.startswith("DUTY") or (hdr2 and hdr2 != "TOTAL")
+            if not is_worker_col:
+                continue  # totals block / notes column -> never touch
+            for rr in range(1, target_ws.max_row + 1):
+                try:
+                    cell = target_ws.cell(rr, c)
+                    cell.value = None
+                    cell.fill = _PF(fill_type=None)
+                    cell.border = _BD()
+                    cell.font = _FT()
+                    cell.alignment = _AL()
+                    cell.number_format = "General"
+                except AttributeError:
+                    pass  # merged cell -> already empty
+            # কলামের প্রস্থ-ও ডিফল্টে আনি — নাহলে চওড়া খালি কলাম দেখাবে
+            try:
+                del target_ws.column_dimensions[_xl_letter(c)]
+            except Exception:
+                pass
+
+        # ---- মার্জ সংকোচন: শুধু যতটুকু লোক আছে ততটুকুই ----
+        # টাইটেল বার (row 1), TOTAL সারি (row 35), হলুদ বার (row 37) — সবই
+        # last_used পর্যন্তই থাকবে, নাহলে খালি কলাম পর্যন্ত বার বিস্তৃত হবে।
+        try:
+            for _mr in list(target_ws.merged_cells.ranges):
+                # MergedCellRange-এ max_column নেই — bounds থেকে নিই
+                # bounds = (min_col, min_row, max_col, max_row)
+                _mc1, _mr1, _mc2, _mr2 = _mr.bounds
+                if _mc2 <= last_used:
+                    continue
+                _r1, _r2, _c1 = _mr1, _mr2, _mc1
+                target_ws.unmerge_cells(str(_mr))
+                target_ws.merge_cells(start_row=_r1, start_column=_c1,
+                                      end_row=_r2, end_column=last_used)
+        except Exception:
+            pass
+
+        # title row1: update month/provider label, preserve rest
+        _last_worker_col = 3 + len(wlist) - 1
+        try:
+            for _mr in list(target_ws.merged_cells.ranges):
+                if _mr.min_row == 1 and _mr.max_row == 1:
+                    target_ws.unmerge_cells(str(_mr))
+            target_ws.merge_cells(start_row=1, start_column=1, end_row=1,
+                                  end_column=max(_last_worker_col, 3))
+        except Exception:
+            pass
+        try:
+            t = str(target_ws.cell(1, 1).value or "")
+            # replace (XXX-YYYY) month part, e.g. (SEP -2026)
+            t_new = re.sub(r"\([A-Z]+ *- *\d{4}\)", f"({month_name} -{year})", t)
+            if is_new_sheet and prov_raw:
+                # newly cloned provider sheet: label it with the new provider
+                t_new = re.sub(r"\([^()]*\)\s*$", f"({prov_raw})", t_new)
+            if t_new != t:
+                target_ws.cell(1, 1).value = t_new
+        except Exception:
+            pass
+
+        # daily rows: fixed 31-day layout like template (rows 4..34 = day 1..31, row 35 = TOTAL)
+        # We also add site split columns (where each worker worked each day)
+        # Site split data from duty_data: {month: {worker_key: [{site, days, hours}]}}
+        duty_month = duty_data.get(f"{year}-{month:02d}", {}) if duty_data else {}
+        
+        # daily rows: fixed 31-day layout like template (rows 4..34 = day 1..31, row 35 = TOTAL)
+        for d in range(1, 32):
+            r = 3 + d
+            if d <= num_days:
+                dt = datetime(year, month, d)
+                is_sunday = dt.weekday() == 6
+                target_ws.cell(r, 1).value = d
+                target_ws.cell(r, 2).value = dt
+                target_ws.cell(r, 2).number_format = date_fmt
+                for j, w in enumerate(wlist):
+                    col = 3 + j
+                    if target_ws.cell(r, col).coordinate in target_ws.merged_cells:
+                        continue
+                    raw = w["days"][d - 1] if d - 1 < len(w["days"]) else None
+                    # রবিবার: ডাটা শিটে ঘণ্টা (সংখ্যা) বা "A" থাকলে ওটাই রাখি —
+                    # শুধু খালি/S হলে "SUNDAY" লিখি, যাতে দিনের ঘরের যোগ = TOTAL মেলে।
+                    _sun_free = raw is None or (
+                        isinstance(raw, str) and raw.strip().upper() in ("", "S", "SUNDAY", "SUN"))
+                    if is_sunday and _sun_free:
+                        target_ws.cell(r, col).value = "SUNDAY"
+                        _paint_day_cell(target_ws, r, col, "sunday")
+                    else:
+                        if raw is None or (isinstance(raw, str) and raw.strip() == ""):
+                            target_ws.cell(r, col).value = None
+                            _paint_day_cell(target_ws, r, col, "normal")
+                        elif isinstance(raw, (int, float)):
+                            target_ws.cell(r, col).value = raw
+                            _paint_day_cell(target_ws, r, col, "normal")
+                        else:
+                            s = str(raw).strip()
+                            if s.upper() in ("S", "SUNDAY", "SUN"):
+                                target_ws.cell(r, col).value = "SUNDAY"
+                                _paint_day_cell(target_ws, r, col, "sunday")
+                            else:
+                                try:
+                                    target_ws.cell(r, col).value = float(s)
+                                except ValueError:
+                                    target_ws.cell(r, col).value = s
+                                if s.upper() == "A":
+                                    _paint_day_cell(target_ws, r, col, "absent")
+                                else:
+                                    _paint_day_cell(target_ws, r, col, "normal")
+                    # Site Split column for this worker on this day
+                    wkey = norm_person(w["name"])
+                    if duty_month and wkey in duty_month:
+                        splits = duty_month[wkey]
+                        for sp in splits:
+                            if sp.get("days") and d in sp["days"]:
+                                site_name = sp.get("site", "")
+                                if site_name:
+                                    # Add site name in a comment or adjacent column
+                                    # For now, append to cell as note: "8 (Al Maraj)"
+                                    existing = target_ws.cell(r, col).value
+                                    if existing is not None:
+                                        try:
+                                            target_ws.cell(r, col).value = f"{existing} ({site_name})"
+                                        except Exception:
+                                            pass
+            else:
+                # days beyond month (e.g. 31 in Sep): clear and reset style
+                try:
+                    target_ws.cell(r, 1).value = d if num_days == 31 else None
+                except Exception:
+                    pass
+                try:
+                    target_ws.cell(r, 2).value = None
+                except Exception:
+                    pass
+                for j in range(len(wlist)):
+                    try:
+                        target_ws.cell(r, 3 + j).value = None
+                        _paint_day_cell(target_ws, r, 3 + j, "normal")
+                    except Exception:
+                        pass
+        # TOTAL row = 35 (fixed, hubuhu template)
+        total_row = 35
+        # ensure TOTAL label in col B
+        target_ws.cell(total_row, 2).value = "TOTAL"
+        for j, w in enumerate(wlist):
+            col = 3 + j
+            target_ws.cell(total_row, col).value = w["total_h"] if w["total_h"] else None
+        # শেষে মোট ঘণ্টা: row 37 -> "TOTAL HOURS - <মোট>"
+        try:
+            _write_total_hours_bar(target_ws, wlist)
+        except Exception:
+            pass
+        # unused trailing columns মাস্টারের প্রস্থই রাখি — নতুন 2.0 বসাবো না
+        # (মাস্টারের মতো একই চওড়া থাকবে যাতে ফরম্যাট হুবহু মিলে)
+        _used_sheets.add(target_ws.title)
+
+    # ---- 1b) Drop stale provider sheets (no workers in this data sheet) ----
+    # A provider sheet that nobody works under this month still carries the
+    # previous month's names, hours and month title. Left in place it looks
+    # like real data, so the sheet is removed entirely.
+    for _sn in list(wb.sheetnames):
+        if _sn in GRAND_SHEET_NAMES or _sn in _used_sheets:
+            continue
+        del wb[_sn]
+
+    # ---- 2) Rebuild Master Sheet (summary) ----
+    ws = grand_sheet(wb)
+    # মাস্টার টেমপ্লেটের শিট-নাম হুবহু রাখি (Total grand balance)
+    if ws.title != MASTER_SHEET_TITLE and MASTER_SHEET_TITLE not in wb.sheetnames:
+        ws.title = MASTER_SHEET_TITLE
+    # title (value only - the merge is fixed after all rows are written)
+    try:
+        ws.cell(2, 3).value = f"Labour salary paid and Balance sheet ({month_name}-{year})"
+    except Exception:
+        pass
+    # ---- Grand Sheet Header Row 4 — মাস্টারের হেডার হুবহু রাখা হয় ----
+    # বট কখনো মাস্টারের হেডার বদলায় না। কোনো কলাম খালি থাকলে
+    # শুধু সেই খালি ঘরটায় ডিফল্ট নাম বসায় (নতুন মাস্টারে কোনো কলাম না থাকলেও যেন খালি না দেখায়)।
+    # কলাম ক্রম (মাস্টার অনুযায়ী):
+    #   B=SL.NO  C=NAME  D=Total Duty hour  E=Buy Rate  F=Total Balance
+    #   G=Advance monye  H=Gas Bill  I=Grand Balance  J=Sign  K=Remark or coment
+    headers = [
+        ("B", "SL.NO"),
+        ("C", "NAME"),
+        ("D", "Total Duty hour"),
+        ("E", "Buy Rate"),
+        ("F", "Total Balance"),
+        ("G", "Advance monye"),
+        ("H", "Gas Bill"),
+        ("I", "Grand Balance"),
+        ("J", "Sign"),
+        ("K", "Remark or coment"),
+    ]
+    for col_letter, val in headers:
+        try:
+            col_idx = ord(col_letter) - ord('A') + 1
+            cell = ws.cell(4, col_idx)
+            # মাস্টারের হেডার থাকলে সেটাই থাকবে — শুধু ফাঁকা ঘরে ডিফল্ট বসে
+            if cell.value in (None, ""):
+                cell.value = val
+        except Exception:
+            pass
+    # We rebuild starting at row 5 (first ref header).
+    start_row = 5
+    # read styles
+    ref_style_cells = [ws.cell(5, c) for c in range(1, ws.max_column + 1)]
+    worker_style_cells = [ws.cell(6, c) for c in range(1, ws.max_column + 1)]
+
+    # unmerge first (else MergedCell value is read-only)
+    for mr in list(ws.merged_cells.ranges):
+        if mr.min_row >= 5:
+            ws.unmerge_cells(str(mr))
+
+    # clear from row 5 to max (keep header row4)
+    for r in range(5, ws.max_row + 1):
+        for c in range(1, ws.max_column + 1):
+            try:
+                ws.cell(r, c).value = None
+            except AttributeError:
+                pass
+
+    r = start_row - 1
+    sl = 1
+    for prov_raw, prov_key, wlist in groups:
+        _, ref_text = provider_lookup(prov_key)
+        if ref_text is None:
+            ref_text = f"Refarenc of ( {prov_raw} )" if prov_raw else "Refarenc of ( - )"
+        # ref row
+        r += 1
+        for c in range(1, ws.max_column + 1):
+            copy_style(ref_style_cells[c - 1], ws.cell(r, c))
+            ws.cell(r, c).value = None
+        # মাস্টারের মতো: প্রথম ref-সারি (r5) top=medium, বাকিগুলো top=thin
+        # মার্জ B..K (col 2..11) — টেক্সট B-তে
+        ws.cell(r, 2).value = ref_text
+        ws.merge_cells(start_row=r, start_column=2, end_row=r, end_column=11)
+        # worker rows
+        for w in wlist:
+            r += 1
+            for c in range(1, ws.max_column + 1):
+                copy_style(worker_style_cells[c - 1], ws.cell(r, c))
+            ws.cell(r, 2).value = sl
+            ws.cell(r, 3).value = w["name"]
+            ws.cell(r, 4).value = w["total_h"] if w["total_h"] else None
+            # par H Rate → Buy Rate
+            ws.cell(r, 5).value = w["rate"]
+            # Total Balance (= hours × rate)
+            ws.cell(r, 6).value = w["total_aed"]
+            # Advance monye
+            ws.cell(r, 7).value = w["advance"] if w["advance"] else None
+            # Gas Bill
+            ws.cell(r, 8).value = w["gas"] if w["gas"] else None
+            # Grand Balance
+            ws.cell(r, 9).value = w["grand"]
+            ws.cell(r, 10).value = None  # Sign
+            ws.cell(r, 11).value = None  # Remark or coment
+            sl += 1
+
+    # ---- fix title + ref merges to the real final width ----
+    try:
+        _last_col = 11
+        # unmerge ALL existing merges in rows 1-4 that overlap with our new merge
+        for _mr in list(ws.merged_cells.ranges):
+            if _mr.min_row <= 2 and _mr.max_row >= 2 and _mr.min_column >= 2 and _mr.max_column <= _last_col:
+                try:
+                    ws.unmerge_cells(str(_mr))
+                except Exception:
+                    pass
+        # মাস্টারের মতো শিরোনাম — C2:K3 (২ সারি লম্বা)
+        ws.merge_cells(start_row=2, start_column=3, end_row=3, end_column=_last_col)
+        # ref rows: unmerge old, merge new — মাস্টারের মতো B..K (col 2..11)
+        for _mr in list(ws.merged_cells.ranges):
+            if _mr.min_row >= 5 and _mr.max_row == _mr.min_row:
+                _r = _mr.min_row
+                _v = ws.cell(_r, 2).value
+                if _v and "Refarenc" in str(_v):
+                    ws.unmerge_cells(str(_mr))
+                    ws.merge_cells(start_row=_r, start_column=2, end_row=_r,
+                                   end_column=_last_col)
+    except Exception:
+        pass
+
+    # ---- বর্ডার-গ্রিড ঠিক করি (মাস্টারের নিয়ম) ----
+    # মাস্টারে প্রতিটি ঘরের উপরের বর্ডার = ঠিক তার উপরের ঘরের নিচের বর্ডার।
+    # এই নিয়ম মানলেই হেডারের নিচের প্রথম ref-সারিতে medium, বাকিগুলোতে thin
+    # আসে — মাস্টার হুবহু, বর্ডারের রংও মাস্টারের নিজেরটাই থাকে।
+    try:
+        from openpyxl.styles import Border as _B
+        _last_r = r          # শেষ লেখা সারি পর্যন্তই — নিচের ফাঁকা সারিতে বর্ডার বসাবো না
+        for _r in range(6, _last_r + 1):
+            for _c in range(1, ws.max_column + 1):
+                _above = ws.cell(_r - 1, _c).border
+                _cur = ws.cell(_r, _c).border
+                if _cur.top.style == _above.bottom.style and \
+                        getattr(_cur.top.color, "rgb", None) == getattr(_above.bottom.color, "rgb", None) and \
+                        getattr(_cur.top.color, "theme", None) == getattr(_above.bottom.color, "theme", None):
+                    continue
+                ws.cell(_r, _c).border = _B(
+                    left=_cur.left, right=_cur.right,
+                    top=copy.copy(_above.bottom), bottom=_cur.bottom)
+    except Exception:
+        pass
+    # কলাম মুছে না ফেলে প্রস্থ-ও অপরিবর্তিত রাখি — মাস্টারে যেমন ছিল তেমনই থাকে।
+    # (কোনো কলাম একদম অপ্রয়োজনীয় হলে মাস্টারের প্রস্থই দেখাবে, নতুন 2.0 বসবে না)
+
+    wb.save(output_path)
+    wb.close()
+    return {"workers": len(workers), "groups": len(groups), "output": output_path}
+
+
+def get_data_grid(data_path):
+    """Full editable grid of the Data sheet (like the Data Excel)."""
+    a = analyze_data_sheet(data_path)
+    wb = load_workbook(data_path, data_only=True)
+    ws = wb[DATA_SHEET_NAME] if DATA_SHEET_NAME in wb.sheetnames else wb[wb.sheetnames[0]]
+    m = locate_data_table(ws)
+    start = m["first_row"] if m else 3
+    rows = []
+    for w in a["workers"]:
+        r = w.get("row") or 0
+        fmt = {}
+        if m and r:
+            grab = {}
+            if m["sn"]:
+                grab["sn"] = (r, m["sn"])
+            if m["provider"]:
+                grab["provider"] = (r, m["provider"])
+            if m["name"]:
+                grab["name"] = (r, m["name"])
+            for d in range(1, 32):
+                if d in m["days"]:
+                    grab[f"d{d - 1}"] = (r, m["days"][d])
+            if m["rate"]:
+                grab["rate"] = (r, m["rate"])
+            if m.get("site_rate"):
+                grab["srate"] = (r, m["site_rate"])
+            if m["advance"]:
+                grab["advance"] = (r, m["advance"])
+            if m["gas"]:
+                grab["gas"] = (r, m["gas"])
+            for k, (rr, cc) in grab.items():
+                try:
+                    f = cell_format(ws.cell(rr, cc))
+                    if f:
+                        # rule: red background lives ONLY on absent (A) day cells.
+                        # Stale reds from older saves are dropped here so they
+                        # can never leak back into the file on save.
+                        if k.startswith("d") and f.get("bg") == "FF0000":
+                            v = ws.cell(rr, cc).value
+                            if not (isinstance(v, str) and v.strip().upper() == "A"):
+                                del f["bg"]
+                    if f:
+                        fmt[k] = f
+                except Exception:
+                    pass
+        rows.append({
+            "sn": "" if w["sn"] is None else w["sn"],
+            "provider": w["provider_raw"],
+            "name": w["name"],
+            "days": [("" if v is None else v) for v in w["days"]],
+            "rate": "" if w["rate"] is None else w["rate"],
+            "srate": "" if w.get("site_rate") is None else w["site_rate"],
+            "advance": "" if not w["advance"] else w["advance"],
+            "gas": "" if not w["gas"] else w["gas"],
+            "fmt": fmt,
+        })
+    wb.close()
+    return {"days": list(range(1, 32)), "rows": rows, "warnings": a["warnings"],
+            "meta": a["meta"], "mapped": a["mapped"], "start": start}
+
+
+def _write_data_rows(ws, rows, m, start):
+    """Write grid rows into mapped (or legacy) columns. Returns worker count."""
+    if m:
+        sn_c, p_c, n_c = m["sn"], m["provider"], m["name"]
+        day_c = m["days"]
+        th_c, rt_c, ts_c, ad_c, gs_c, gr_c = (m["total_h"], m["rate"], m["total_sy"],
+                                             m["advance"], m["gas"], m["grand"])
+        sr_c = m.get("site_rate")
+        width = ([sn_c, p_c, n_c, th_c, rt_c, sr_c, ts_c, ad_c, gs_c, gr_c]
+                 + list(day_c.values()))
+    else:  # legacy fixed layout
+        sn_c, p_c, n_c = 1, 2, 3
+        day_c = {d: 3 + d for d in range(1, 32)}
+        th_c, rt_c, ts_c, ad_c, gs_c, gr_c = 35, 36, 37, 38, 39, 40
+        sr_c = 37
+        width = list(range(1, 41))
+    maxc = max([c for c in width if c] or [40])
+    # unmerge provider merges so every row is writable
+    if p_c:
+        for mr in list(ws.merged_cells.ranges):
+            if mr.min_row >= start and mr.min_col <= p_c <= mr.max_col:
+                ws.unmerge_cells(str(mr))
+    # clear old worker area (values only, styles stay)
+    for r in range(start, ws.max_row + 1):
+        for c in range(1, maxc + 1):
+            try:
+                ws.cell(r, c).value = None
+            except AttributeError:
+                pass
+    # write rows
+    for i, w in enumerate(rows):
+        r = start + i
+        for c in range(1, maxc + 1):
+            try:
+                copy_cell_structure(ws.cell(start, c), ws.cell(r, c))
+            except AttributeError:
+                pass
+        name = str(w.get("name", "")).strip()
+        if not name:
+            continue
+        if sn_c:
+            ws.cell(r, sn_c).value = w.get("sn") if w.get("sn") not in (None, "") else None
+            apply_format(ws.cell(r, sn_c), (w.get("fmt") or {}).get("sn"))
+        prov = str(w.get("provider", "")).strip()
+        if p_c:
+            ws.cell(r, p_c).value = prov if prov else None
+            apply_format(ws.cell(r, p_c), (w.get("fmt") or {}).get("provider"))
+        ws.cell(r, n_c).value = name
+        apply_format(ws.cell(r, n_c), (w.get("fmt") or {}).get("name"))
+        days = w.get("days", [])
+        total_h = 0.0
+        for d in range(1, 32):
+            if d not in day_c:
+                continue
+            raw = days[d - 1] if d - 1 < len(days) else ""
+            h, disp = to_hours(raw)
+            try:
+                ws.cell(r, day_c[d]).value = disp
+                if str(disp).strip().upper() == "A":
+                    ws.cell(r, day_c[d]).fill = PatternFill("solid", fgColor="FFFF0000")
+                elif str(disp).strip().upper() in ("S", "SUNDAY", "SUN"):
+                    f = copy.copy(ws.cell(r, day_c[d]).font)
+                    f.color = Color(rgb="FFFF0000")
+                    ws.cell(r, day_c[d]).font = f
+            except AttributeError:
+                pass
+            apply_format(ws.cell(r, day_c[d]), (w.get("fmt") or {}).get(f"d{d - 1}"))
+            total_h += h
+        rate = _num_or_none(w.get("rate"))
+        srate = _num_or_none(w.get("srate"))
+        if sr_c:
+            ws.cell(r, sr_c).value = srate if srate is not None else None
+            apply_format(ws.cell(r, sr_c), (w.get("fmt") or {}).get("srate"))
+        adv = _num_or_none(w.get("advance")) or 0.0
+        gas = _num_or_none(w.get("gas")) or 0.0
+        total_h = round(total_h, 2)
+        total_aed = round(total_h * rate, 2) if (rate is not None and total_h) else None
+        grand = round(total_aed - adv - gas, 2) if total_aed is not None else None
+        if th_c:
+            ws.cell(r, th_c).value = total_h if total_h else None
+        if rt_c:
+            ws.cell(r, rt_c).value = rate
+            apply_format(ws.cell(r, rt_c), (w.get("fmt") or {}).get("rate"))
+        if ts_c:
+            ws.cell(r, ts_c).value = total_aed
+        if ad_c:
+            ws.cell(r, ad_c).value = adv if adv else None
+            apply_format(ws.cell(r, ad_c), (w.get("fmt") or {}).get("advance"))
+        if gs_c:
+            ws.cell(r, gs_c).value = gas if gas else None
+            apply_format(ws.cell(r, gs_c), (w.get("fmt") or {}).get("gas"))
+        if gr_c:
+            ws.cell(r, gr_c).value = grand
+    # spare rows below the written workers: reset stale fills/fonts too
+    # (an old red A-cell would otherwise linger on a now-empty row)
+    for r in range(start + len(rows), ws.max_row + 1):
+        for c in range(1, maxc + 1):
+            try:
+                cell = ws.cell(r, c)
+                if cell.value is None:
+                    cell.fill = PatternFill()
+                    cell.font = Font()
+            except AttributeError:
+                pass
+    # re-merge consecutive same-provider cells
+    if p_c:
+        n = len(rows)
+        i = 0
+        while i < n:
+            prov = str(rows[i].get("provider", "")).strip()
+            if not prov or not str(rows[i].get("name", "")).strip():
+                i += 1
+                continue
+            j = i
+            while j + 1 < n and str(rows[j + 1].get("provider", "")).strip() == prov \
+                    and str(rows[j + 1].get("name", "")).strip():
+                j += 1
+            if j > i:
+                ws.merge_cells(start_row=start + i, start_column=p_c, end_row=start + j, end_column=p_c)
+            i = j + 1
+    return sum(1 for w in rows if str(w.get("name", "")).strip())
+
+
+def save_data_sheet(template_path, output_path, rows):
+    """Write the dashboard Data grid back to a Data-format Excel (same look)."""
+    wb = load_workbook(template_path)
+    ws = wb[DATA_SHEET_NAME] if DATA_SHEET_NAME in wb.sheetnames else wb[wb.sheetnames[0]]
+    m = locate_data_table(ws)
+    start = m["first_row"] if m else 3
+    n = _write_data_rows(ws, rows, m, start)
+    wb.save(output_path)
+    wb.close()
+    return {"workers": n, "output": output_path}
+
+
+def _cell_json(v):
+    if v is None:
+        return ""
+    if isinstance(v, datetime):
+        return v.strftime("%Y-%m-%d")
+    if isinstance(v, float) and v.is_integer():
+        return int(v)
+    return v
+
+
+def _tint_hex(hexrgb, tint):
+    if not tint:
+        return hexrgb
+    try:
+        t = float(tint)
+    except Exception:
+        return hexrgb
+
+    def f(v):
+        v = v / 255.0
+        v = v * (1 + t) if t < 0 else v * (1 - t) + t
+        return max(0, min(255, int(round(v * 255))))
+
+    return "%02X%02X%02X" % (f(int(hexrgb[0:2], 16)),
+                             f(int(hexrgb[2:4], 16)),
+                             f(int(hexrgb[4:6], 16)))
+
+
+def _theme_map(wb):
+    """Theme সূচি থেকে theme=4,5,6… আসল রঙে বদলাও (এক্সেলের নিজের মতো)।"""
+    try:
+        xml = wb.loaded_theme
+        if not xml:
+            return {}
+        if isinstance(xml, bytes):
+            xml = xml.decode("utf-8", "replace")
+        seg = re.search(r"<a:clrScheme.*?</a:clrScheme>", xml, re.S)
+        if not seg:
+            return {}
+        seg = seg.group(0)
+        found = {}
+        for nm in ("dk1", "lt1", "dk2", "lt2", "accent1", "accent2", "accent3",
+                   "accent4", "accent5", "accent6", "hlink", "folHlink"):
+            mm = re.search(r"<a:%s>(.*?)</a:%s>" % (nm, nm), seg, re.S)
+            if not mm:
+                continue
+            c = re.search(r'<a:srgbClr val="([0-9A-Fa-f]{6})"', mm.group(1))
+            if not c:
+                c = re.search(r'<a:sysClr[^>]*lastClr="([0-9A-Fa-f]{6})"', mm.group(1))
+            if c:
+                found[nm] = c.group(1).upper()
+        idx = {"lt1": 0, "dk1": 1, "lt2": 2, "dk2": 3, "accent1": 4,
+               "accent2": 5, "accent3": 6, "accent4": 7, "accent5": 8,
+               "accent6": 9, "hlink": 10, "folHlink": 11}
+        return {v: found[k] for k, v in idx.items() if k in found}
+    except Exception:
+        return {}
+
+
+def _color_of(color, tmap):
+    try:
+        if color is None:
+            return None
+        t = color.type
+        if t == "rgb":
+            h = _fmt_css_hex(color.rgb)
+            return "#" + h if h else None
+        if t == "theme":
+            base = tmap.get(int(color.theme))
+            return ("#" + _tint_hex(base, color.tint)) if base else None
+        if t == "indexed":
+            from openpyxl.styles.colors import COLOR_INDEX
+            i = int(color.indexed)
+            if 0 <= i < len(COLOR_INDEX) and isinstance(COLOR_INDEX[i], str):
+                return "#" + COLOR_INDEX[i][2:8].upper()
+    except Exception:
+        pass
+    return None
+
+
+def _style_json(cell, tmap=None):
+    """Cell-এর আসল রঙ/ফন্ট/বর্ডার — প্রিভিউ এক্সেলের হুবহু হয়।"""
+    tmap = tmap or {}
+    out = {}
+    try:
+        f = cell.fill
+        if f is not None and f.patternType == "solid":
+            c = _color_of(f.fgColor, tmap)
+            if c:
+                out["bg"] = c
+    except Exception:
+        pass
+    try:
+        ft = cell.font
+        if ft is not None:
+            if ft.bold:
+                out["b"] = 1
+            if ft.italic:
+                out["i"] = 1
+            c = _color_of(ft.color, tmap) if ft.color else None
+            if c:
+                out["fg"] = c
+    except Exception:
+        pass
+    try:
+        a = cell.alignment
+        if a is not None and a.horizontal in ("left", "center", "right"):
+            out["al"] = a.horizontal
+    except Exception:
+        pass
+    try:
+        b = cell.border
+        if b is not None and any(getattr(b, x).style
+                                 for x in ("left", "right", "top", "bottom")):
+            out["bd"] = 1
+    except Exception:
+        pass
+    return out
+
+
+def _row_styles(ws, r, c1, c2, tmap=None):
+    return [_style_json(ws.cell(r, c), tmap) for c in range(c1, c2 + 1)]
+
+
+def _first_style(ws, r, c1, c2, tmap=None):
+    for c in range(c1, c2 + 1):
+        st = _style_json(ws.cell(r, c), tmap)
+        if st:
+            return st
+    return {}
+
+
+def preview_total_sheet(output_path):
+    """Structured preview of a generated Total T file (এক্সেলের রঙসহ)।"""
+    wb = load_workbook(output_path, data_only=True)
+    tmap = _theme_map(wb)
+    ws = grand_sheet(wb)
+    gmax = min(ws.max_column or 11, 11)
+    grand = []
+    for r in range(5, ws.max_row + 1):
+        sl = ws.cell(r, 2).value      # B — SL নম্বর, অথবা ref-সারিতে রেফারেন্স লেখা
+        name = ws.cell(r, 3).value    # C — লোকের নাম
+        if sl is None and name is None:
+            continue
+        st = _row_styles(ws, r, 2, gmax, tmap)
+        if name is None and sl is not None:
+            # ref সারি — Text মাস্টারের মতো B কলামে
+            grand.append({"t": "ref", "text": str(sl), "st": st})
+        elif name is not None:
+            grand.append({"t": "w", "sl": sl, "name": str(name),
+                          "h": _cell_json(ws.cell(r, 4).value),
+                          "rate": _cell_json(ws.cell(r, 5).value),
+                          "total": _cell_json(ws.cell(r, 6).value),
+                          "adv": _cell_json(ws.cell(r, 7).value),
+                          "gas": _cell_json(ws.cell(r, 8).value),
+                          "grand": _cell_json(ws.cell(r, 9).value),
+                          "st": st})
+    # শিরোন: যে ঘরে লেখা আছে এবং যার পেছনে রঙ আছে
+    gtitle, trow = "", 1
+    for r in (1, 2, 3, 4):
+        for c in range(1, gmax + 1):
+            v = ws.cell(r, c).value
+            if v not in (None, ""):
+                gtitle = str(v)
+                trow = r
+                break
+        if gtitle:
+            break
+    title_st = {}
+    for r in (trow, 2, 1, 3):
+        if not title_st:
+            title_st = _first_style(ws, r, 1, gmax, tmap)
+    ghead_r = 4 if str(ws.cell(4, 3).value or "").strip().upper().startswith("NAME") else 3
+    ginfo = {
+        "title": gtitle,
+        "titleSt": title_st,
+        "headSt": _row_styles(ws, ghead_r, 1, gmax, tmap),
+        "headNames": [("" if ws.cell(ghead_r, c).value is None
+                       else str(ws.cell(ghead_r, c).value))
+                      for c in range(1, gmax + 1)],
+        "headRow": ghead_r,
+    }
+    sheets = []
+    for sn in wb.sheetnames:
+        if sn in GRAND_SHEET_NAMES:
+            continue
+        w2 = wb[sn]
+        cols = []
+        for c in range(3, w2.max_column + 1):
+            if str(w2.cell(3, c).value or "").strip().upper().startswith("DUTY") \
+                    and w2.cell(2, c).value:
+                cols.append(c)
+        if not cols:
+            continue
+        names = [str(w2.cell(2, c).value) for c in cols]
+        totals = [_cell_json(w2.cell(35, c).value) for c in cols]
+        days = []
+        for r in range(4, 35):
+            d = w2.cell(r, 1).value
+            dt = w2.cell(r, 2).value
+            if d is None and dt is None:
+                continue
+            days.append({"d": "" if d is None else d,
+                         "date": _cell_json(dt),
+                         "v": [_cell_json(w2.cell(r, c).value) for c in cols],
+                         "st": [_style_json(w2.cell(r, c), tmap) for c in cols]})
+        bar = None
+        for mr in w2.merged_cells.ranges:
+            if mr.min_row <= 37 <= mr.max_row:
+                bar = mr
+                break
+        # বারের রঙ মার্জের অ্যাংকর ঘরে থাকে (সবসময় A নয় — কখনো H থেকেও শুরু হয়)
+        _bc = bar.min_col if bar is not None else 1
+        sheets.append({
+            "name": sn, "title": str(w2.cell(1, 1).value or "").strip(),
+            "workers": names, "totals": totals, "days": days,
+            "headSt": _row_styles(w2, 3, 1, w2.max_column or 3, tmap),
+            "totalSt": _row_styles(w2, 35, 1, w2.max_column or 3, tmap),
+            "bar": (str(w2.cell(bar.min_row, _bc).value or "")
+                    if bar is not None else ""),
+            "barSt": _style_json(w2.cell(_bc, bar.min_row), tmap) if bar is not None else {},
+        })
+    wb.close()
+    return {"grand": grand, "sheets": sheets, "ginfo": ginfo}
+
+
+if __name__ == "__main__":
+    import sys
+    data = sys.argv[1] if len(sys.argv) > 1 else r"D:\ai manager\Data sheet sep-26.xlsx"
+    tmpl = sys.argv[2] if len(sys.argv) > 2 else r"D:\ai manager\Total T sheet  SEP 2026.xlsx"
+    out = sys.argv[3] if len(sys.argv) > 3 else r"D:\ai manager\output\Total T sheet AUTO.xlsx"
+    print(generate_total_sheet(data, tmpl, out, 9, 2026))

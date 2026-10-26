@@ -1,0 +1,30 @@
+# AI Time Keeper — version history ignore list
+# (বড়/বাইনারি ফাইল ও জেনারেট-করা জিনিস ইতিহাসে যাবে না)
+
+__pycache__/
+*.pyc
+*.pyo
+.git/
+
+# বড় ও পুনরুৎপাদনযোগ্য ফোল্ডার
+backup/
+output/
+drivers/
+drive_trash/
+ocr_uploads/
+logs/
+
+# বড় আর্কাইভ
+*.zip
+*.7z
+
+# ডাটা/ডকুমেন্ট (লক + ব্যাকআপ ফোল্ডার এগুলো সামলায়)
+*.xlsx
+*.xlsm
+*.xls
+*.pdf
+
+# ওয়ান-টাইম ফাইল
+*.lnk
+restart.log
+~$*

@@ -1,0 +1,45 @@
+{
+  "settings": {
+    "invoice_start_no": 2,
+    "assigned": {
+      "mr.nur|9|2026": 1
+    }
+  },
+  "company": {
+    "name": "MANPOWER MAINTENANCE",
+    "contact": "050 2571 319",
+    "email": "roxyrahat0002@gmail.com"
+  },
+  "providers": {
+    "mr.nur": {
+      "client": "",
+      "address": "",
+      "client_rate": 0,
+      "display": "Nur vai"
+    },
+    "mr.jalil": {
+      "client": "",
+      "address": "",
+      "client_rate": 0,
+      "display": "Jalil vai"
+    },
+    "mr.abzol": {
+      "client": "",
+      "address": "",
+      "client_rate": 0,
+      "display": "Abzol vai"
+    },
+    "mr.somuj": {
+      "client": "",
+      "address": "",
+      "client_rate": 0,
+      "display": "Mr.Samuj"
+    },
+    "mr.amin": {
+      "client": "",
+      "address": "",
+      "client_rate": 0,
+      "display": "Mr.Amin"
+    }
+  }
+}
