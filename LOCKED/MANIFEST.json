@@ -1,5 +1,5 @@
 {
-  "locked_at": "2026-10-26 21:49:35",
+  "locked_at": "2026-10-26 22:05:21",
   "base": "D:\\ai manager",
   "files": {
     "app.py": {
@@ -27,8 +27,8 @@
       "size": 8502
     },
     "dashboard.html": {
-      "sha256": "7ed34646830fbf38a60e6d99a58a0912671382628dd62fc68354ffd312f3559d",
-      "size": 271893
+      "sha256": "00ef17d479f1b6fe9f95111cac1c5d28ef78bbf596d3bd6e85f3eee3396a2268",
+      "size": 276357
     },
     "workspace.html": {
       "sha256": "4e83cafc1c5a156af45c518400fabc713354be2030bafa1594c9daa2d18eb820",

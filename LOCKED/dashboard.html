@@ -1783,6 +1783,7 @@ body.cgOn .cg{opacity:1}
 <div class="sidefoot" data-i18n="sidefoot">🔒 Local only • অটো-ব্যাকআপ চালু</div>
 </aside>
 <main>
+<div id="healthBanner" style="display:none"></div>
 <header>
 <div style="display:flex;align-items:center;gap:14px">
 <div><h1>AI Time Keeper</h1><p class="sub" data-i18n="subtitle">Data sheet → Total T sheet • হুবহু ফরমেট • আধুনিক ড্যাশবোর্ড</p><p class="greet" id="greet"></p></div>
@@ -2512,6 +2513,7 @@ async function init(){
  d.onchange=()=>{const v=d.value;const d2e=document.getElementById('dataFile2');if([...d2e.options].some(o=>o.value===v)){d2e.value=v;loadGrid()}preview();memSet({dataFile:v,tmplFile:t.value})};preview();outs();loadGrid();
  memSet({dataFile:d.value,tmplFile:t.value});rollInit();riFill();
  const hm=(location.hash||'').match(/^#tab([1-5])$/);if(hm)tab(+hm[1]);
+ setTimeout(checkHealth,1200);  // হেলথ ব্যানার (এক্সটেনশন/ব্যাকআপ সমস্যা)
 }
 async function preview(){
  const f=document.getElementById('dataFile').value;if(!f)return;
@@ -3002,6 +3004,52 @@ async function loadMonths(){
    box.innerHTML=h;
   }catch(e){box.innerHTML='<div class="status err">❌ '+e.message+'</div>'}
 }
+/* ===== হেলথ ব্যানার (এক্সটেনশন এরর / ব্যাকআপ সমস্যা বাংলায়) ===== */
+async function checkHealth(){
+  const el=document.getElementById('healthBanner');if(!el)return;
+  let j=null;
+  try{
+    const r=await fetch('/api/health');
+    if(r.status===404){el.style.display='block';
+      el.style.cssText='display:block;margin:0 0 14px;padding:12px 16px;border-radius:12px;background:#7f1d1d;border:1px solid #ef4444;color:#fecaca;font-size:14px';
+      el.innerHTML='<b>⛔ হেলথ চেক পাওয়া যায়নি</b> — সার্ভার পুরনো ভার্সনে চলছে বা এক্সটেনশন লোড হয়নি। অ্যাপ রিস্টার্ট করুন।';
+      return}
+    j=await r.json();
+  }catch(e){
+    el.style.display='block';
+    el.style.cssText='display:block;margin:0 0 14px;padding:12px 16px;border-radius:12px;background:#7f1d1d;border:1px solid #ef4444;color:#fecaca;font-size:14px';
+    el.innerHTML='<b>⛔ সার্ভারের সাথে সংযোগ নেই</b> — '+esc(e.message);
+    return}
+  if(!j||j.status==='ok'){el.style.display='none';el.innerHTML='';return}
+  const err=j.status==='error';
+  const items=(j.problems||[]).concat(j.warns||[]);
+  const b=j.backup||{};
+  el.style.display='block';
+  el.style.cssText='display:block;margin:0 0 14px;padding:12px 16px;border-radius:12px;font-size:14px;line-height:1.6;'
+   +(err?'background:#7f1d1d;border:1px solid #ef4444;color:#fecaca'
+        :'background:#422006;border:1px solid #f59e0b;color:#fde68a');
+  el.innerHTML=(err?'⛔ <b>সিস্টেমে সমস্যা আছে</b>':'⚠️ <b>মনোযোগ দিন</b>')
+   +'<ul style="margin:6px 0 8px 18px;padding:0">'+items.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>'
+   +(b.last_ok_str?'<span style="opacity:.8">সর্বশেষ ব্যাকআপ: '+esc(b.last_ok_str)
+      +(b.files?' ('+b.files+' ফাইল)':'')+(b.onedrive?' · OneDrive-এ আছে':'')+'</span><br>':'')
+   +'<span style="display:inline-flex;gap:8px;margin-top:6px">'
+   +'<button onclick="healthBackupNow(this)" style="cursor:pointer;padding:5px 14px;border-radius:8px;border:0;background:#ef4444;color:#fff;font-weight:700">🔒 এখনই ব্যাকআপ</button>'
+   +'<button onclick="checkHealth()" style="cursor:pointer;padding:5px 14px;border-radius:8px;border:1px solid currentColor;background:transparent;color:inherit">↻ আবার যাচাই</button>'
+   +'</span><div id="hbMsg" style="margin-top:6px;font-weight:700"></div>';
+}
+async function healthBackupNow(btn){
+  const m=document.getElementById('hbMsg');if(m)m.textContent='⏳ ব্যাকআপ হচ্ছে…';
+  if(btn)btn.disabled=true;
+  try{
+    const j=await (await fetch('/api/ws/backup-now',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})).json();
+    if(!j.ok)throw new Error(j.err||'ব্যাকআপ ব্যর্থ');
+    if(m)m.textContent='✅ ব্যাকআপ হয়েছে — '+j.files+' ফাইল · '+Math.round((j.size||0)/1024)+' KB'
+      +(j.onedrive?' · OneDrive-এও কপি হয়েছে':' · (OneDrive: '+(j.onedrive_err||'নেই')+')')
+      +' — '+j.path;
+  }catch(e){if(m)m.textContent='❌ '+e.message}
+  if(btn)btn.disabled=false;
+  setTimeout(checkHealth,1200);
+}
 async function doMonthClear(){
   const b=document.getElementById('mcBtn'),s=document.getElementById('mcstatus');
   const m=+document.getElementById('mcMonth').value;
@@ -3026,7 +3074,17 @@ async function doMonthClear(){
    +'🧹 খালি হবে: শুধু দিনের ঘর (১-৩১)\n\n'
    +'⚠️ কোনো ফাইল মুছে যাবে না। সব ব্যাকআপ হবে।\n\nআপনি কি নিশ্চিত?';
   if(!confirm(txt))return;
-  b.disabled=true;s.className='status';s.textContent='ব্যাকআপ নেওয়া হচ্ছে, '+ab+'-'+y+' সেভ হচ্ছে…';
+  b.disabled=true;s.className='status';s.textContent='🔒 অটো ব্যাকআপ নেওয়া হচ্ছে — ভুল হলে ফেরানোর জন্য…';
+  let bk=null;
+  try{
+   bk=await (await fetch('/api/ws/backup-now',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})).json();
+   if(!bk.ok)throw new Error(bk.err||'ব্যাকআপ ব্যর্থ');
+  }catch(e){
+   s.className='status err';
+   s.textContent='❌ ব্যাকআপ হয়নি, তাই Month Clear বাতিল করা হলো — '+e.message;
+   b.disabled=false;return;
+  }
+  s.textContent='🔒 ব্যাকআপ সেভ হয়েছে, এখন '+ab+'-'+y+' মাস ক্লিয়ার হচ্ছে…';
   try{
    const j=await (await fetch('/api/month-clear',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({file:f,tmpl:tp,month:m,year:y,doGenerate:doGen})})).json();
@@ -3049,7 +3107,9 @@ async function doMonthClear(){
      pf.dispatchEvent(new Event('change'))}}catch(e){}
     s.className='status ok';
     s.textContent='✅ '+j.closedMonth+' মাস সেভ হয়েছে! '+j.workers+' জন, '+j.hours+' ঘণ্টা।'
-     +' এখন চলছে '+j.newMonth+' — নতুন ফাইল: '+j.newFile;
+     +' এখন চলছে '+j.newMonth+' — নতুন ফাইল: '+j.newFile
+      +(bk&&bk.path?' · 🔒 ব্যাকআপ: '+bk.path.replace(/^.*[\\\/]/,''):'');
+    checkHealth();
    const out=document.getElementById('mcOut');
    if(out){out.innerHTML='<div style="margin-top:10px;border:1px solid #14532d;border-radius:12px;padding:10px 12px;background:#052e16">'
     +'<b style="color:#4ade80">📁 '+j.closedMonth+' ফোল্ডারে সেভ হয়েছে:</b><br>'
