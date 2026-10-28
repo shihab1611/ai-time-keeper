@@ -2265,7 +2265,7 @@ sdFail:'❌ Could not stop it — try again',
 sdDoneTitle:'Server stopped safely',
 sdDoneBody:'AI Time Keeper shut down successfully. All data, settings and auto-backups are intact.',
 sdRestart:'🔄 Start again'}};
-let LANG=localStorage.getItem('atk_lang')||'bn';
+let LANG=(function(){try{const v=localStorage.getItem('atk_lang');return (v==='en'||v==='bn')?v:'en'}catch(e){return 'en'}})();
 function T(k){return (I18N[LANG]&&I18N[LANG][k])||I18N.bn[k]||k}
 function setLang(l){LANG=(l==='en')?'en':'bn';try{localStorage.setItem('atk_lang',LANG)}catch(e){}applyI18n();try{memSet({lang:LANG})}catch(e){}}
 function applyI18n(){
@@ -2939,10 +2939,10 @@ async function memLoad(){
  catch(e){MEM={}}
  memReady=true;
  try{
-  if(MEM.lang){
-   /* user's explicit language choice (localStorage) wins over the saved memory */
+  /* language: only the user's explicit choice (localStorage) decides; default is English */
+  {
    const ls=null;try{ls=localStorage.getItem('atk_lang')}catch(e){}
-   LANG=(ls==='en'||ls==='bn')?ls:MEM.lang;
+   if(ls==='bn')LANG='bn'; else if(ls==='en')LANG='en';
   }
   if(MEM.gridSize!=null){try{GRID_SIZE=+MEM.gridSize}catch(e){}}
   if(MEM.autoBackup!=null){AUTO_BAK=!!MEM.autoBackup}

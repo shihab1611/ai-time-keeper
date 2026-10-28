@@ -1680,9 +1680,9 @@ function wsCapture(){
   });
 }
 
-let WS_LANG = 'bn';
+let WS_LANG = 'en';
 function wsApplyLang(lang){
-  try { WS_LANG = localStorage.getItem('atk_lang') || localStorage.getItem('ws_lang') || 'bn'; } catch (e) {}
+  try { const v = localStorage.getItem('atk_lang') || localStorage.getItem('ws_lang'); WS_LANG = (v === 'bn') ? 'bn' : 'en'; } catch (e) { WS_LANG = 'en'; }
   if (lang) WS_LANG = lang;
   wsCapture();
 
@@ -2353,6 +2353,15 @@ document.addEventListener('DOMContentLoaded', () => {
     'সেভ হচ্ছে...': 'Saving...',
     'সেভ হয়েছে': 'Saved',
     '—': '—',
+    /* top uiBar toolbar (built after wsApplyLang; keep these in EN) */
+    'ভাষা': 'Language',
+    'বাংলা': 'বাংলা',
+    'থিম': 'Theme',
+    'কার্ড': 'Cards',
+    'সব দেখাও': 'Show all',
+    'সব লুকাও': 'Hide all',
+    'ডিফল্ট': 'Default',
+    'সংরক্ষিত': 'Saved',
   };
   /* rebuild keys in composed NFC form so app text always matches */
   const NK = {};
@@ -2437,6 +2446,7 @@ document.addEventListener('DOMContentLoaded', () => {
     ['বার্তা পাঠাতে চান লিখুন...', 'Type the message you want to send...'],
     ['কমেন্ট', 'Comment'],
     ['নম্বর সেট', 'Numbers set'],
+    ['মাসিক চক্র', 'Monthly cycle'],
     ['মাসিক চক্র', 'Monthly cycle'],
     ['যে বার্তা পাঠাতে চান লিখুন', 'Type the message you want to send'],
     ['🔄 মাস্টার থেকে নাও', '🔄 Import from master'],
