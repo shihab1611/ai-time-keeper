@@ -2267,7 +2267,7 @@ sdDoneBody:'AI Time Keeper shut down successfully. All data, settings and auto-b
 sdRestart:'🔄 Start again'}};
 let LANG=localStorage.getItem('atk_lang')||'bn';
 function T(k){return (I18N[LANG]&&I18N[LANG][k])||I18N.bn[k]||k}
-function setLang(l){LANG=(l==='en')?'en':'bn';try{localStorage.setItem('atk_lang',LANG)}catch(e){}applyI18n()}
+function setLang(l){LANG=(l==='en')?'en':'bn';try{localStorage.setItem('atk_lang',LANG)}catch(e){}applyI18n();try{memSet({lang:LANG})}catch(e){}}
 function applyI18n(){
  document.querySelectorAll('[data-i18n]').forEach(el=>{el.innerHTML=T(el.dataset.i18n)});
  document.querySelectorAll('[data-i18n-ph]').forEach(el=>{el.placeholder=T(el.dataset.i18nPh)});
@@ -2939,7 +2939,11 @@ async function memLoad(){
  catch(e){MEM={}}
  memReady=true;
  try{
-  if(MEM.lang){LANG=MEM.lang}
+  if(MEM.lang){
+   /* user's explicit language choice (localStorage) wins over the saved memory */
+   const ls=null;try{ls=localStorage.getItem('atk_lang')}catch(e){}
+   LANG=(ls==='en'||ls==='bn')?ls:MEM.lang;
+  }
   if(MEM.gridSize!=null){try{GRID_SIZE=+MEM.gridSize}catch(e){}}
   if(MEM.autoBackup!=null){AUTO_BAK=!!MEM.autoBackup}
   if(MEM.defMonth){try{DEF_M=+MEM.defMonth;DEF_Y=+MEM.defYear}catch(e){}}
@@ -4236,5 +4240,397 @@ document.addEventListener('DOMContentLoaded', () => setTimeout(() => MOTION.init
   })();
 })();
 </script>
+<script>
+/* ============================================================================
+   DASHBOARD FULL-EN LAYER
+   Translates every remaining Bengali UI string the i18n system misses
+   (rendered cards, hints, health banner, month-clear, drive, memory, titles).
+   - Tier A: exact matches; Tier B: anchored regex (numbers/names preserved);
+     Tier C: attribute phrase pieces (placeholder/title only)
+   User data (names, filenames like ...বট.xlsx) is NEVER touched —
+   anything not in the dictionary stays exactly as it is.
+   Originals live in WeakMaps, so switching back to বাংলা restores them.
+   ============================================================================ */
+(function(){
+  const BN_RE = RegExp('[' + String.fromCharCode(0x0980) + '-' + String.fromCharCode(0x09FF) + ']');
+  const SKIP_SEL = 'script,style,textarea,[contenteditable],.skip';
+  const nfc = function(s){ return s.normalize ? s.normalize('NFC') : s; };
+
+  /* ---- Tier A: exact text-node matches ---- */
+  const A = {
+    /* health strip */
+    'সিস্টেমে সমস্যা আছে': 'System has problems',
+    'মনোযোগ দিন': 'Attention needed',
+    '🔒 এখনই ব্যাকআপ': '🔒 Back up now',
+    '↻ আবার যাচাই': '↻ Re-check',
+    '🔒 Local only • অটো-ব্যাকআপ চালু': '🔒 Local only • auto-backup on',
+    /* top / search */
+    'খুঁজুন': 'Search',
+    '🔍 খুঁজুন': '🔍 Search',
+    '📁 নতুন ফোল্ডার': '📁 New folder',
+    '⚠️ বটের চোখে সন্দেহজনক:': '⚠️ Suspicious to the bot:',
+    'Language / ভাষা': 'Language',
+    'Theme / থিম': 'Theme',
+    'ভাষা': 'Language',
+    '· 🔑 ক্লাউড লগইন:': '· 🔑 Cloud login:',
+    '·  🔑 ক্লাউড লগইন:': '· 🔑 Cloud login:',
+    'Data sheet → Total T sheet • হুবহু ফরমেট • আধুনিক ড্যাশবোর্ড': 'Data sheet → Total T sheet • exact format • modern dashboard',
+    /* profit strip */
+    '❓ সাইট রেট বসান': '❓ Set site rates',
+    '📈 প্রফিট ': '📈 Profit ',
+    '📉 লস ': '📉 Loss ',
+    /* preview table */
+    'নাম': 'Name',
+    'ঘণ্টা': 'Hours',
+    'খালি': 'Empty',
+    'ডাউনলোড': 'Download',
+    'Output ফাইল': 'Output files',
+    '📂 Output ফাইল': '📂 Output files',
+    '👁️ দেখা ও ডাউনলোড': '👁️ View & download',
+    '👁️ Preview দেখুন': '👁️ Show preview',
+    'কোন Output ফাইল দেখবেন': 'Which output file to view',
+    'ফাইলের নাম': 'File name',
+    'লোকেশন (ফোল্ডার পুরো পাথ)': 'Location (full folder path)',
+    'দ্রুত বাছুন': 'Quick pick',
+    '💾 এই নামে এই ফোল্ডারে Save করুন': '💾 Save with this name in this folder',
+    'ব্রাউজারের ⬇️ ডাউনলোড বাটন চাপলে Browser-এর Download ফোল্ডারে যায়। নির্দিষ্ট ফোল্ডারে রাখতে উপরের Save বাটন ব্যবহার করুন।': 'The browser ⬇️ download button goes to the browser Download folder. Use the Save button above to put the file in a specific folder.',
+    '📝 নাম ও লোকেশন বেছে ডাউনলোড': '📝 Choose name & location and download',
+    /* cards toolbar */
+    '👁️ কার্ড লুকান / দেখান': '👁️ Hide / show cards',
+    'সব দেখাও': 'Show all',
+    'সব লুকাও': 'Hide all',
+    '⚙️ ডিফল্টে ফেরাও': '⚙️ Reset to default',
+    /* grid bits */
+    '✂️ কাটুন': '✂️ Cut',
+    '✔️ টিক দিন': '✔️ Tick',
+    '⬛ ঘর': '⬛ Cells',
+    '🔤 লেখা': '🔤 Text',
+    'মোট ⏱': 'Total ⏱',
+    '＋ নতুন লোক যোগ করুন': '＋ Add a new person',
+    '↻ আবার লোড করুন': '↻ Reload',
+    '➕ Labour Add — Provider-এর নিচে নতুন লোক': '➕ Labour Add — new person under a Provider',
+    'কোন Provider-এর নিচে যোগ হবে': 'Which Provider to add under',
+    'নতুন লোকের নাম': 'New person name',
+    '➕ যোগ করুন': '➕ Add',
+    '🗑️ ডিলিট অপশন দেখুন': '🗑️ Show delete options',
+    '🗑️ মুছতে Provider সিলেক্ট করুন': '🗑️ Pick a Provider to delete',
+    '🗑️ Full Provider কাটুন': '🗑️ Cut a full Provider',
+    '✂️ বেছে বেছে কাটুন — টিক দিন যাদের কাটবেন': '✂️ Selective cut — tick whom to cut',
+    '✅ সব টিক': '✅ Tick all',
+    'টিক মুছুন': 'Untick',
+    '✂️ টিক দেওয়াদের কাটুন': '✂️ Cut ticked people',
+    '🗑️ লিস্ট থেকে সরান': '🗑️ Remove from list',
+    '✍️ নিজে পূরণ করুন': '✍️ Fill in yourself',
+    /* month clear */
+    '🗓 মাস শেষ ও নতুন মাস': '🗓 End of month & new month',
+    '📁 💾 মাস ক্লিয়ার — মাসের সব হিসাব আলাদা ফোল্ডারে সেভ করবে': '📁 💾 Month Clear — saves the whole month into a separate folder',
+    'এই মাসের ডেটা শিট আর Total T শিট': 'This month’s data sheet and Total T sheet',
+    'ফোল্ডারে কপি হয়ে যাবে, পাশাপাশি প্রফিট/চক্রের হিসাবও থাকবে। তারপর বট নিজে থেকেই': 'will be copied into the folder, and the profit/cycle calculations are saved too. Then the bot itself',
+    'এর নতুন ডেটা শিট বানিয়ে দেবে — লোকের নাম, Provider, রেট, এডভাংচ, Gas সব থাকবে, শুধু দিনের ঘর খালি হবে। কোনো ফাইল মুছে যাবে না।': 'will build the next month’s data sheet — names, Provider, rate, advance, Gas all kept, only the day cells empty. No file is deleted.',
+    'যে মাস শেষ হচ্ছে': 'Month being closed',
+    'সম্পনী বের': 'Year',
+    'চলে যাওয়া মাসের Total T': 'Last month’s Total T',
+    'বট নিজে বানাবে': 'Bot will build it',
+    'আগে থেকেই বানানো আছে': 'Already built earlier',
+    '💾 মাস ক্লিয়ার করুন': '💾 Run Month Clear',
+    '📋 সব স্টেটমেন্ট PDF তৈরি করুন (মাস ক্লিয়ার ছাড়াই)': '📋 Make all statement PDFs (without Month Clear)',
+    '📁 📂 মাসের ফোল্ডার': '📁 📂 Month folders',
+    'প্রতি মাসের ডেটা শিট, Total T শিট আর প্রফিট হিসাব এখানে জমা থাকে। কোনো কিছুই মুছে যায় না।': 'Every month’s data sheet, Total T sheet and profit calc are stored here. Nothing is ever deleted.',
+    '🔁 চেক করা ফাইল থেকে সংশোধন': '🔁 Correct from the checked file',
+    '📤 📦 চেক করা ফাইল ফেরত আনো — Re-import': '📤 📦 Bring back the checked file — Re-import',
+    'Total T ডাউনলোড করে নিজে চেক করলে, ভুল থাকলে সেখানেই ঠিক করে রাখুন। এরপর এই বাটন চাপলে বট সেই সব সংশোধন ডাটা শিটে ঢুকিয়ে নেয় — পরের মাসে সেগুলো থেকেই হিসাব হবে।': 'After downloading Total T, check it yourself and fix mistakes right there. This button then pulls those corrections into the data sheet — next month is calculated from them.',
+    'আপনার চেক করা Total T ফাইল': 'Your checked Total T file',
+    'পুরো পাথ (অন্য ফোল্ডারে সেভ করলে)': 'Full path (if saved in another folder)',
+    'ফেরত আনবে কোন ডাটা শিটে': 'Which data sheet to pull into',
+    '🔍 আগে দেখুন (Dry Run)': '🔍 Preview first (Dry Run)',
+    '📤 ফেরত আনো (ডাটা শিটে সেভ)': '📤 Pull back (saved into the data sheet)',
+    '💰 🧠 এডভাংচ চেক': '💰 🧠 Advance check',
+    'Advance sheet.xlsx তে বাকি এডভাংচের হিসাব ডাটা শিটের': 'The remaining advance in Advance sheet.xlsx is matched against the data sheet’s',
+    'ঘরের সাথে মিলিয়ে দেখাবে। মিললে কিন্তু বট সতর্ক মেসেজে দেবে।': 'column and shown together. If they match the bot still warns with a message.',
+    '🧠 এডভাংচ চেক করুন': '🧠 Run advance check',
+    /* generate */
+    '⚙️ Generate — Total T বানান': '⚙️ Generate — build Total T',
+    '🔄 Data Update চাপলেই এটা অটো হয়ে যায়। মাস বা বছর বদলাতে চাইলে নিচের ✨ বাটন ব্যবহার করুন।': 'Data Update does this automatically. To change the month or year, use the ✨ button below.',
+    'Data sheet ফাইল (D:\\ai manager)': 'Data sheet file (D:\\ai manager)',
+    'Template (Total T ফরমেট)': 'Template (Total T format)',
+    'মাস': 'Month',
+    'বছর': 'Year',
+    '✨ Total T বানাও': '✨ Build Total T',
+    'রেডি। Generate-এর আগে Data ফাইলের অটো-ব্যাকআপ নেওয়া হবে।': 'Ready. Auto-backup of the data file runs before Generate.',
+    /* backup tab */
+    '💾 Backup — প্রতিবার কাজের আগে অটো-ব্যাকআপ': '💾 Backup — auto-backup before every job',
+    'সময়': 'Time',
+    'ফাইল': 'File',
+    'সাইজ': 'Size',
+    '💾 Save বা ✨ Generate চাপলেই পুরনো ফাইলের কপি': 'Every Save or ✨ Generate copies the old file —',
+    'ফোল্ডারে সময়সহ জমা হয়। ভুল হলে এখান থেকে ফিরিয়ে আনুন।': 'kept with timestamps. Restore from here if anything goes wrong.',
+    'কোন ফাইলে ফিরিয়ে আনবেন': 'Which file to restore into',
+    '↻ তালিকা আপডেট': '↻ Refresh list',
+    '🧹 ৩০+ দিনের পুরনো ব্যাকআপ পরিষ্কার': '🧹 Clean backups older than 30 days',
+    /* settings / memory */
+    'ভাষা / Language': 'Language / ভাষা',
+    'থিম / Theme': 'Theme / থিম',
+    'গাঢ় গ্লাস, চোখে আরাম': 'Dark glass, easy on the eyes',
+    'সাদা গ্লাস, হালকা': 'Light glass, bright',
+    '🧠 বট মেমোরি — সেটিংস আর ফাইল মনে রাখে': '🧠 Bot memory — remembers settings & files',
+    'ভাষা, থিম, গ্রিড সাইজ, অটো-ব্যাকআপ, কোন ডাটা ফাইল ব্যবহার করছেন, কোন টেমপ্লেট — সব': 'Language, theme, grid size, auto-backup, your data file, your template — all of it',
+    'এক ফাইলেই থাকে': 'lives in one file',
+    'ফাইলে সেভ থাকে। এটা': 'is saved in this file. It is',
+    '-এ আছে, তাই': 'is on D:, so',
+    'Windows নতুন করে দিলেও উধাও হবে না': 'nothing vanishes even if Windows is reinstalled',
+    '— একটা একটা করে কানেক্ট করতে হবে না।': '— no need to connect things one by one.',
+    'বাংলা (bn)': 'Bengali (bn)',
+    'English (en)': 'English (en)',
+    'থিম': 'Theme',
+    'গ্রিড সাইজ': 'Grid size',
+    'অটো-ব্যাকআপ': 'Auto-backup',
+    'ডিফল্ট মাস': 'Default month',
+    'অক্টো': 'OCT',
+    'ডিফল্ট বছর': 'Default year',
+    'ডাটা ফাইল': 'Data file',
+    'টেমপ্লেট': 'Template',
+    'প্রফিট মাস': 'Profit month',
+    'শেষ মাস ক্লিয়ার': 'Last month cleared',
+    '🔄 মেমোরি দেখুন': '🔄 View memory',
+    '💾 এখনই সেভ করুন': '💾 Save now',
+    '🗑️ মেমোরি মুছে ফেলুন': '🗑️ Erase memory',
+    '✅ মেমোরি থেকে পড়া হয়েছে': '✅ Loaded from memory',
+    '📁 মেমোরি ফাইল:': '📁 Memory file:',
+    '· 🔑 ক্লাউড লগইন:': '· 🔑 Cloud login:',
+    '(এটাও D: ড্রাইভে, Windows গেলেও টিকবে)': '(also on the D: drive — survives a Windows reinstall)',
+    'ভাষা বদলানো হয়েছে': 'Language changed',
+    /* user account */
+    '👤 ইউজার অ্যাকাউন্ট': '👤 User account',
+    'লগইন:': 'Login:',
+    '➕ ইউজার যোগ': '➕ Add user',
+    '🔑 নিজের পাসওয়ার্ড বদলান': '🔑 Change your password',
+    '🔒 এখনই তালা': '🔒 Lock now',
+    '🔒 স্থায়ী করুন (বদলাবে না)': '🔒 Make permanent (won’t change)',
+    /* drive */
+    '📁 Drive — কোম্পানির সব ফাইল': '📁 Drive — all company files',
+    '＋ ফোল্ডার': '＋ Folder',
+    'সর্বোচ্চ 100MB • .exe/.bat রাখা যাবে না • একই নামে থাকলে (2), (3) যোগ হবে • ড্রাইভের ফাইলে অটো-ব্যাকআপ হয় না (OneDrive-ই ব্যাকআপ)': 'Up to 100MB • no .exe/.bat • same names get (2), (3) • Drive files are not auto-backed-up (OneDrive is the backup)',
+    'rclone দিয়ে ক্লাউডে যুক্ত • মুছলে OneDrive Recycle Bin-এ যায়': 'Connected to cloud via rclone • deleted files go to the OneDrive Recycle Bin',
+    '🗑️ Trash দেখুন': '🗑️ View Trash',
+    '🗑️ Trash স্থায়ীভাবে খালি করুন': '🗑️ Empty Trash permanently',
+    'Trash-এ ৩০ দিন থাকার পর অটো মুছে যায় • 👁️ = প্রিভিউ': 'Auto-deleted after 30 days in Trash • 👁️ = preview',
+    'AI Time Keeper • Local only • D:\\ai manager • প্রতিবার কাজের আগে অটো-ব্যাকআপ': 'AI Time Keeper • Local only • D:\\ai manager • auto-backup before every job'
+  };
+
+  /* ---- Tier B: anchored regex (numbers, names preserved) ---- */
+  const B = [
+    ['^(\\d+) জন$', '$1 people'],
+    ['^⬇️ ডাউনলোড (.+)$', '⬇️ Download $1'],
+    ['^(.+?) আপলোড ও চিক চিত্র$', '$1 Upload & fix images'],
+    ['^(.+?)ক্লাউড লগইন:$', '$1Cloud login:'],
+    ['^(\\d+) ঘণ্টা$', '$1 hours'],
+    ['^(\\d+) ঘণ্টা • প্রফিট দেখতে রেট লাগবে$', '$1 hours • set a rate to see profit'],
+    ['^(\\d+) টি$', '$1 items'],
+    ['^(\\d+) টি কার্ড · (\\d+) টি লুকানো$', '$1 cards · $2 hidden'],
+    ['^(\\d+) টি শিট · (.+)$', '$1 sheets · $2'],
+    ['^(.+?) \\\\ — (\\d+) টি ফাইল সেভ করা আছে$', '$1 \\\\ — $2 files saved'],
+    ['^(.+?) \\((\\d+) জন\\)$', '$1 ($2 people)'],
+    ['^(.+?) ?→ ?মোট$', '$1 → Total'],
+    ['^সর্বশেষ ব্যাকআপ: (.+?) \\((\\d+) ফাইল\\) · OneDrive-এ আছে$', 'Last backup: $1 ($2 files) • in OneDrive'],
+    ['^সর্বশেষ ব্যাকআপ: (.+)$', 'Last backup: $1'],
+    ['^⚠️ ইঞ্জিন লক ভেঙে গেছে — (.*)$', '⚠️ Engine lock is broken — $1'],
+    ['^• প্রোভাইডার (.+?) provider_config\\.json-এ সক্রিয়, কিন্তু শিটে কোনো লোক নেই — Provider ঘর হারিয়ে গেছে কিনা দেখুন$', "• Provider $1 is active in provider_config.json but nobody is in the sheet — check whether the Provider column was lost"],
+    ['^✅ সম্পন্ন! (\\d+) জন, (\\d+) গ্রুপ → (.+?) (\\(ব্যাকআপ: .*)$', '✅ Done! $1 people, $2 groups → $3 $4'],
+    ['^✅ টোটাল শিট বানানো হয়েছে — (\\d+) জন, (\\d+) গ্রুপ → (.*)$', '✅ Total sheet built — $1 people, $2 groups → $3'],
+    ['^(\\d+)টি সতর্কতা \\(Preview-তে দেখুন\\)$', '$1 warnings (see Preview)'],
+    ['^(\\d+)টি স্টেটমেন্ট PDF তৈরি হয়েছে$', '$1 statement PDFs created'],
+    ['^(\\d+) টি দিনের ঘর খালি, (\\d+) জন রইলো$', '$1 day cells cleared, $2 people kept'],
+    ['^(\\d+)টি স্টেটমেন্ট PDF সেভ হয়েছে', '$1 statement PDFs saved (']
+  ];
+  const BRE = B.map(function(x){ try { return [new RegExp(x[0]), x[1]]; } catch (e) { return [null, x[1]]; } });
+
+  /* month names for the "N — জানুয়ারী" options */
+  const MON = {
+    'জানুয়ারী':'January','ফেব্রুয়ারী':'February','মার্চ':'March','এপ্রিল':'April','মে':'May','জুন':'June',
+    'জুলাই':'July','আগস্ট':'August','সেপ্টেম্বর':'September','অক্টোবর':'October','নভেম্বর':'November','ডিসেম্বর':'December'
+  };
+
+  /* ---- Tier C: attribute phrase pieces (placeholder / title only) ---- */
+  const C = [
+    ['ফাইলটা লিস্ট থেকে সরান', 'Remove the file from the list'],
+    ['মুছে যাবে না, ব্যাকআপ ফোল্ডারে রাখা হবে (Backup ট্যাব থেকে ফেরত আনা যায়)', 'it is not deleted — kept in the backup folder (bring it back from the Backup tab)'],
+    ['সব ট্যাব, অ্যাকশন ও ফিচার খুঁজে পান', 'Find every tab, action & feature'],
+    ['সাইট থেকে প্রতি ঘণ্টা কত পাই', 'What we get per hour from the site'],
+    ['লুকান — ', 'Hide — '],
+    ['দেখান — ', 'Show — '],
+    [' জন', ' people'],
+    ['মাস ক্লিয়ার', 'Month Clear'],
+    ['প্রতিবার কাজের আগে অটো-ব্যাকআপ', 'auto-backup before every job'],
+    ['কোম্পানির সব ফাইল', 'all company files'],
+    ['মাসের সব হিসাব', 'the month\u2019s totals'],
+    ['মাসের ফোল্ডার', 'month folder'],
+    ['চেক করা ফাইল ফেরত আনো', 'bring back the checked file'],
+    ['এডভাংচ চেক', 'Advance check'],
+    ['বট মেমোরি', 'Bot memory'],
+    ['সেটিংস আর ফাইল মনে রা', 'remembers settings & files'],
+    ['মান মুছুন', 'Clear value'],
+    ['সব মুছুন', 'Clear all'],
+    ['সিলেক্টেড কাটুন', 'Cut selected'],
+    ['Absent বসান', 'Set Absent'],
+    ['Sunday বসান', 'Set Sunday'],
+    ['✓ চালু আছে', '✓ Active'],
+    ['এই থিম বসান', 'Apply this theme'],
+    ['নাম বদলাতে ক্লিক', 'Click to rename'],
+    ['নতুন ফোল্ডার', 'New folder'],
+    ['নতুন User ID', 'New User ID'],
+    ['পাসওয়ার্ড', 'Password'],
+    ['নাম লিখুন', 'Type name'],
+    ['যেমন: ', 'e.g. '],
+    ['যেমন ', 'e.g. '],
+    ['হুবহু Excel-এর মতো', 'exactly like Excel'],
+    ['⬇️ ডাউনলোড ', '⬇️ Download ']
+  ];
+  const CN = C.map(function(x){ return [nfc(x[0]), x[1]]; });
+
+  /* reverse restore (nodes first seen while EN was already on) */
+  const RV = {};
+  for (const k in A){
+    const v = A[k];
+    if (v && !BN_RE.test(v) && v !== k){ const kk = nfc(v); if (!RV[kk]) RV[kk] = nfc(k); }
+  }
+  const CRV = C.map(function(x){ return [x[1], x[0]]; });
+
+  const ATTRS = ['placeholder', 'title', 'aria-label'];
+  const dNodeOrig = new WeakMap();
+  const dElAttr = new WeakMap();
+  let dTxing = false, dTxTimer = null, dTxLast = 0;
+
+  function dshEnOf(raw){
+    if (!raw || !BN_RE.test(raw)) return null;
+    const k = nfc(raw.trim());
+    if (!k) return null;
+    if (A[k]) return A[k];
+    const m = k.match(/^(\d+) — (.+)$/);
+    if (m && MON[m[2]]) return m[1] + ' — ' + MON[m[2]];
+    for (let i = 0; i < BRE.length; i++){
+      if (BRE[i][0] && BRE[i][0].test(k)) return k.replace(BRE[i][0], BRE[i][1]);
+    }
+    return null;   /* unknown → user data, never translated */
+  }
+
+  function dshEnAttr(v){
+    if (!v || !BN_RE.test(v)) return null;
+    const k = nfc(v.trim());
+    if (!k) return null;
+    if (A[k]) return A[k];
+    let out = nfc(v);
+    for (let i = 0; i < CN.length; i++) out = out.split(CN[i][0]).join(CN[i][1]);
+    return BN_RE.test(out) ? null : out;
+  }
+
+  function dshTxAll(){
+    if (dTxing) return;
+    dTxing = true;
+    try {
+      const wantEn = (typeof LANG !== 'undefined') && LANG === 'en';
+
+      const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+        acceptNode: function(n){
+          const p = n.parentElement;
+          if (!p || p.closest(SKIP_SEL)) return NodeFilter.FILTER_REJECT;
+          const ts = (n.nodeValue || '').trim();
+          if (!ts) return NodeFilter.FILTER_REJECT;
+          /* already captured once → always visit, restore branch decides */
+          if (dNodeOrig.has(n)) return NodeFilter.FILTER_ACCEPT;
+          if (BN_RE.test(ts)) return NodeFilter.FILTER_ACCEPT;
+          if (wantEn) return NodeFilter.FILTER_REJECT;
+          if (RV[nfc(ts)]) return NodeFilter.FILTER_ACCEPT;
+          for (let i = 0; i < BRE.length; i++){ if (BRE[i][0] && BRE[i][0].test(ts)) return NodeFilter.FILTER_ACCEPT; }
+          return NodeFilter.FILTER_REJECT;
+        }
+      });
+      const nodes = [];
+      let nd;
+      while ((nd = walker.nextNode())) nodes.push(nd);
+      for (let i = 0; i < nodes.length; i++){
+        const node = nodes[i];
+        if (!dNodeOrig.has(node)) dNodeOrig.set(node, node.nodeValue);
+        const orig = dNodeOrig.get(node);
+        let next = orig;
+        if (wantEn){
+          const en = dshEnOf(orig);
+          if (en != null) next = en;
+        } else if (!BN_RE.test(orig)){
+          const ko = nfc(orig.trim());
+          let bn = RV[ko] || null;
+          if (!bn){
+            for (let i = 0; i < CRV.length && !bn; i++){
+              let out = ko, start = ko;
+              out = out.split(CRV[i][0]).join(CRV[i][1]);
+              if (out !== start && BN_RE.test(out)) bn = out;
+            }
+          }
+          if (bn) next = bn;
+        }
+        if (next !== node.nodeValue) node.nodeValue = next;
+      }
+
+      document.querySelectorAll('[placeholder],[title],[aria-label]').forEach(function(el){
+        if (el.closest(SKIP_SEL)) return;
+        for (let j = 0; j < ATTRS.length; j++){
+          const a = ATTRS[j];
+          const v = el.getAttribute(a);
+          if (!v || !v.trim()) continue;
+          if (wantEn && !BN_RE.test(v)) continue;
+          if (!dElAttr.has(el)) dElAttr.set(el, {});
+          const m = dElAttr.get(el);
+          if (!(a in m)) m[a] = v;
+          let next = m[a];
+          if (wantEn){
+            const en = dshEnAttr(m[a]);
+            if (en) next = en;
+          } else if (!BN_RE.test(m[a])){
+            const ko = nfc(m[a].trim());
+            let bn = RV[ko] || null;
+            if (!bn){
+              for (let i = 0; i < CRV.length && !bn; i++){
+                let out = ko, start = ko;
+                out = out.split(CRV[i][0]).join(CRV[i][1]);
+                if (out !== start && BN_RE.test(out)) bn = out;
+              }
+            }
+            if (bn) next = bn;
+          }
+          if (next !== el.getAttribute(a)) el.setAttribute(a, next);
+        }
+      });
+    } finally {
+      dTxing = false;
+    }
+  }
+  window.dshTxAll = dshTxAll;
+
+  /* hook the app's language functions so every switch re-runs a pass */
+  const _applyI18n = window.applyI18n;
+  window.applyI18n = function(){ try { _applyI18n.apply(this, arguments); } catch (e) {} try { dshTxAll(); } catch (e) {} };
+  const _setLang = window.setLang;
+  if (_setLang){
+    window.setLang = function(l){ try { _setLang.apply(this, arguments); } catch (e) {} try { dshTxAll(); } catch (e) {} };
+  }
+
+  /* observer: re-run after every dynamic render (leading edge + 120ms debounce) */
+  if ('MutationObserver' in window){
+    const obs = new MutationObserver(function(){
+      if (dTxing) return;
+      if (!(typeof LANG !== 'undefined' && LANG === 'en')) return;
+      const now = Date.now();
+      if (now - dTxLast > 500){ dTxLast = now; try { dshTxAll(); } catch (e) {} return; }
+      clearTimeout(dTxTimer);
+      dTxTimer = setTimeout(function(){ dTxLast = Date.now(); try { dshTxAll(); } catch (e) {} }, 120);
+    });
+    if (document.body) obs.observe(document.body, { childList:true, subtree:true, characterData:true });
+    document.addEventListener('DOMContentLoaded', function(){
+      try { dshTxAll(); } catch (e) {}
+      if (document.body) obs.observe(document.body, { childList:true, subtree:true, characterData:true });
+    });
+  }
+})();
+</script>
+
 </body>
 </html>

@@ -2133,6 +2133,476 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 <script>
 /* ============================================================================
+   WORKSPACE FULL-EN LAYER
+   Completes English mode for every area the first pass misses:
+   dashboard cards, Advance/Salary results, WhatsApp, Profit, pickers, titles.
+   - Tier A: exact text-node phrases (UI strings only — names/reasons never hit)
+   - Tier B: anchored regex (digits, dates and user names are preserved)
+   - Tier C: attribute phrases (placeholder/title/aria-label only)
+   Originals are kept in WeakMaps so switching back to বাংলা restores them.
+   ============================================================================ */
+(function(){
+  const BN_RE = /[\u0980-\u09FF]/;
+  const SKIP_SEL = '.rfull,.rshort,[data-user],.hist-note,.note-text,[data-notx],script,style,textarea,[contenteditable],.skip';
+  /* Bengali chars have multiple Unicode forms (য় composed/decomposed) — NFC-normalize everything */
+  const nfc = function(s){ return s.normalize ? s.normalize('NFC') : s; };
+
+  /* ---- Tier A: exact (whole trimmed text node) → English ---- */
+  const A = {
+    /* top bar / side */
+    'সংরক্ষিত': 'Saved',
+    'খুঁজুন': 'Search',
+    'বাংলা': 'বাংলা',
+    'Company Workspace • Local only • Time Keeper থেকে আলাদা সেকশন': 'Company Workspace • Local only • Separate from Time Keeper section',
+    '🔒 Local only • Time Keeper থেকে আলাদা': '🔒 Local only • Separate from Time Keeper',
+    /* dashboard w0 */
+    '⬇️ বটের ফাইল খলে': '⬇️ Open bot file',
+    '⬇️ বটের ফাইল খুলুন': '⬇️ Open bot file',
+    'আগে এক্সেল বন্ধ': 'Close Excel first',
+    '⚠️ বকেয়া': '⚠️ Overdue',
+    '⏳ বাকি': '⏳ Pending',
+    '📄 সাইটের ফাইল এসেছে': '📄 Site file received',
+    '📤 সাইটের ফাইল এসেছে': '📤 Site file received',
+    '🔎 আমি চেক করেছি': '🔎 I checked it',
+    '✅ ক্লিয়ার হয়েছে': '✅ Cleared',
+    '🧾 প্রোভাইডার ইনভয়েস এসেছে': '🧾 Provider invoice received',
+    '📄 Total T বানানো': '📄 Total T prepared',
+    '📊 Company Status • Total T sheet AUTO 09-2026 বট.xlsx': '📊 Company Status • Total T sheet AUTO 09-2026 বট.xlsx',
+    'সাইকেল: মাস M তে সাইটে লোক দেওয়া → M+1 তে সাইটের টাইমশিট → প্রোভাইডারের ইনভয়েস → সাইটের টাকা M+1-15, প্রোভাইডারের বিল M+2-15': 'Cycle: manpower placed in month M → site time sheet in M+1 → provider invoice → site payment M+1-15, provider bill M+2-15',
+    'সাইটের টাইমশিট → আপনার চেক → ক্লিয়ার → প্রোভাইডারের ইনভয়েস → ডাকা সাইট M+1-15 → বিল M+2-15। টাক ক্লিক চাপে।': 'Site time sheet → your check → clear → provider invoice → send to site M+1-15 → bill M+2-15. One click.',
+    'সাইট প্রাপ্য': 'Site receivable',
+    /* quick actions row */
+    '🔍 লোক খুঁজুন': '🔍 Find person',
+    '➕ নতুন লোক/প্রোভাইডার': '➕ Add person / provider',
+    '📊 প্রফিট দেখুন': '📊 View profit',
+    '💰 এডভান্স': '💰 Advance',
+    '📄 বট কপি': '📄 Bot copy',
+    /* advance/salary */
+    '💰 অনপেইড ▾': '💰 Unpaid ▾',
+    '💰 অনপেইড (বাকি) ▾': '💰 Unpaid (due) ▾',
+    '💰 অনপেইড (বাকি)': '💰 Unpaid (due)',
+    '✅ পেইড (ক্লিয়ার)': '✅ Paid (cleared)',
+    '📋 সব এন্ট্রি': '📋 All entries',
+    '— বেছে নিন —': '— choose —',
+    'লোক / লক': 'Person / work',
+    '— আগে প্রোভাইডার বাছুন —': '— choose provider first —',
+    'টাকা (AED)': 'Amount (AED)',
+    'তারিখ (খালি=আজ)': 'Date (blank = today)',
+    'কারণ': 'Reason',
+    'স্ট্যাটাস': 'Status',
+    'বাকি': 'Due',
+    'Paid (ক্লিয়ার)': 'Paid (cleared)',
+    '➕ নতুন অ্যাডভাঞ্চ দিন': '➕ Add new advance',
+    '🔄 মাস্টার থেকে নাও': '🔄 Import from master',
+    '💰 মোট বাকি': '💰 Total due',
+    'মোট বাকি': 'Total due',
+    '— প্রোভাইডার না (সরাসরি) —': '— no provider (direct) —',
+    '👷 প্রোভাইডার/রেফারেন্স': '👷 Provider/Reference',
+    'প্রোভাইডার/রেফারেন্স': 'Provider/Reference',
+    '👷 প্রোভাইডার বদলান': '👷 Change provider',
+    '💾 সেভ': '💾 Save',
+    '▾ আরো': '▾ More',
+    'Paid করো': 'Mark paid',
+    '💰 এডভান্স বাকি': '💰 Advance due',
+    '📄 6 ফাইল • 4.2 MB': '📄 6 files • 4.2 MB',
+    /* people & sites */
+    '➕ লোক যোগ করুন / নতুন প্রোভাইডার': '➕ Add person / new provider',
+    '💬 কমেন্ট': '💬 Comment',
+    'লোকের নাম *': 'Person name *',
+    'ডিউটি শুরু': 'Duty starts',
+    'রেট (AED/ঘণ্টা)': 'Rate (AED/hr)',
+    'মোট জন': 'Total people',
+    'চলমান': 'Active',
+    'বন্ধ': 'Closed',
+    'সাইট': 'Site',
+    'প্রোভাইডার': 'Provider',
+    'সাইট (ভাগ)': 'Site (share)',
+    'প্রতিটি প্রোভাইডার — চলমান ও বন্ধ': 'Each provider — active & closed',
+    'সবাই চলমান': 'All active',
+    '— নতুন প্রোভাইডার —': '— new provider —',
+    '📍 সাইট লেখা নেই': '📍 No site name',
+    '🗓️ তারিখ নেই': '🗓️ No date',
+    'লোক': 'People',
+    'টি': 'items',
+    'জন': 'people',
+    /* WhatsApp */
+    '0 নম্বর সেট': '0 numbers set',
+    '① ফোন নম্বর সেবা': '① Phone number service',
+    '— সব —': '— all —',
+    '📋 অনেক নম্বর একসাথে বসান': '📋 Paste many numbers at once',
+    '② প্রত্যেক লোকের হিসাব পাঠান': '② Send each person’s details',
+    '👁️ দেখুন': '👁️ View',
+    '💬 পাঠান': '💬 Send',
+    '③ ডিউটি ও সাইট তালিকা': '③ Duty & site list',
+    '— সব প্রোভাইডার —': '— all providers —',
+    '④ দৈনিক ডিউটি রিমাইন্ডার': '④ Daily duty reminder',
+    '⑤ যেকোনো বার্তা লিখে পাঠান': '⑤ Write & send any message',
+    '— কার কাছে —': '— to whom —',
+    'প্রতিটি মেসেজ WhatsApp-এ খুলে যাবে — শুধু Send চাপলেই চলে যাবে। অটো-পাঠানোর জন্য আলাদা অ্যাপ দরকার।': 'Each message opens in WhatsApp — just press Send. Auto-sending needs a separate app.',
+    /* mail */
+    'Total T ফাইল': 'Total T file',
+    '🔄 হিসাব দেখুন': '🔄 Show calculation',
+    'বিষয়:': 'Subject:',
+    'তারিখ': 'Date',
+    'দিক': 'Direction',
+    '📥 ইন (এলো)': '📥 In (received)',
+    '📤 আউট (গেলো)': '📤 Out (paid)',
+    'বিবরণ': 'Description',
+    '📥 মোট ইন': '📥 Total in',
+    '📤 মোট আউট': '📤 Total out',
+    '📊 ব্যালান্স': '📊 Balance',
+    'এখনো কোনো এন্ট্রি নেই — উপর থেকে যোগ করুন।': 'No entries yet — add from above.',
+    /* invoice / payment */
+    'প্রিভিউতে Unit Price, GAS, ADVANCE এডিট করা যায় — সঙ্গে সঙ্গে TOTAL/NET/In words হিসাব বদলায়।': 'In the preview, Unit Price / GAS / ADVANCE can be edited — TOTAL / NET / In words update instantly.',
+    'Pay To (এডিট করা যাবে)': 'Pay To (editable)',
+    'ঠিকানা': 'Address',
+    '👁️ প্রিভিউ': '👁️ Preview',
+    '💾 ফোল্ডারে PDF সেভ করুন': '💾 Save PDF to folder',
+    '🖨️ প্রিন্ট / PDF': '🖨️ Print / PDF',
+    'একই Data Sheet (একই লোক, একই ঘণ্টা), কিন্তু ক্লায়েন্টের আলাদা/বেশি Unit Price। ADVANCE ও GAS থাকে না — শুধু ঘণ্টা × রেট।': 'Same Data Sheet (same people, same hours) but the client has a separate/higher Unit Price. No ADVANCE or GAS — only hours × rate.',
+    'সাইট / প্রোভাইডার': 'Site / provider',
+    'ক্লায়েন্টের নাম (কোম্পানি)': 'Client name (company)',
+    'ডিফল্ট Unit Price': 'Default Unit Price',
+    '💾 ক্লায়েন্ট সেভ': '💾 Save client',
+    '💡 নাম/ঠিকানা/রেট একবার সেভ করলেই পরের মাসেও থাকবে। প্রিভিউতে Unit Price বদলে [💾 সেভ] চাপলে months\\...\\invoice\\ ফোল্ডারে PDF সেভ হবে। দুই কার্ডই একই প্রিভিউ বক্স ব্যবহার করে।': '💡 Save name/address/rate once and it stays for next month. Change Unit Price in preview and press [💾 Save] to save the PDF into months\\...\\invoice\\. Both cards use the same preview box.',
+    'খুঁজুন / সাইট / প্রোভাইডার': 'Search / site / provider',
+    '🔍 নাম / সাইট / প্রোভাইডার খুঁজুন': '🔍 Search name / site / provider',
+    /* profit */
+    'প্রফিট = ইনকাম − প্রোভাইডার খরচ − অন্য খরচ': 'Profit = income − provider cost − other cost',
+    '💰 ইনকাম': '💰 Income',
+    '💰 মোট ইনকাম': '💰 Total income',
+    '💸 প্রোভাইডার খরচ': '💸 Provider cost',
+    '💸 খরচ — প্রোভাইডারকে দেই': '💸 Costs — paid to providers',
+    '🧾 অন্য খরচ (রুম/গ্যাস/…)': '🧾 Other costs (room/gas/…)',
+    '🧾 অন্য খরচ': '🧾 Other cost',
+    '➕ খরচ যোগ': '➕ Add cost',
+    '🏠 রুম ভাড়া ১০০০ যোগ': '🏠 Add room rent 1000',
+    '📈 নিট প্রফিট': '📈 Net profit',
+    '✅ সাইট দিয়েছে': '✅ Site submitted',
+    'খরচ রেট': 'Cost rate',
+    'পাবো (AED)': 'Will get (AED)',
+    'মোট': 'Total',
+    'গ্রস (ঘণ্টা×রেট)': 'Gross (hours×rate)',
+    'এডভান্স (দেওয়া)': 'Advance (paid)',
+    'গ্যাস': 'Gas',
+    'নিট দিতে হবে': 'Net to pay',
+    'দেওয়া?': 'Paid?',
+    'খরচ': 'Cost',
+    'টাকা': 'Amount',
+    'এই মাসে খরচ লেখা নেই': 'No costs recorded this month',
+    'বিল মাস': 'Billing month',
+    'সেপ্টেম্বর ২০২৬ থেকে সাইকেল — প্রতি মাসে চলতে থাকে।': 'Cycle from September 2026 — keeps running every month.',
+    '⚠️ যার সাইট রেট বসানো নেই, তার ইনকাম ০ ধরা হয়েছে — ওপরে রেট লিখলেই সেভ হবে।': '⚠️ Anyone without a site rate counts as 0 income — type the rate above to save it.',
+    '🧾 = সাইট ভাগ — কে কোন সাইটে কত দিন/ঘণ্টা (পেমেন্টের প্রমাণ)।': '🧾 = site share — who worked which site and how long, days/hours *(proof of payment)*.',
+    'এডভান্স আগেই দেওয়া — তাই নিট = গ্রস − এডভান্স। মোট খরচে গ্রসই ধরা হয়।': 'Advance was given earlier — so net = gross − advance. Total cost counts the gross.',
+    'কোম্পানি থেকে পেমেন্ট এলো/গেলোর হিসাব। সব এন্ট্রি জমা থাকে ও অটো-ব্যাকআপ নেয়।': 'Company payments in/out — every entry is stored and auto-backed-up.',
+    '🗓️ বিল হিস্ট্রি — কে কবে দিল/পেল (সেপ্টেম্বর ২০২৬ থেকে)': '🗓️ Bill history — who paid/received and when *(from September 2026)*',
+    '💰 ইনকাম — সাইট থেকে পাই (কোনো লোকের কত পাই)': '💰 Income — what we get from sites (per person)',
+    /* notices/tasks placeholders */
+    'পরের ধাপে বানানো হবে — ডিউটি, ঘোষণা।': 'Coming next — duty, announcements.',
+    'পরের ধাপে বানানো হবে — Total T মেইলে পাঠানো।': 'Coming next — sending Total T by mail.',
+    /* advance/salary extra */
+    'অনপেইড (বাকি)': 'Unpaid (due)',
+    'AED গড়': 'AED avg',
+    'এন্ট্রি': 'entries',
+    '📂 বট যে ফাইলে কাজ করে:': '📂 The bot works on this file:',
+    '— আপনার': '— your',
+    'মাস্টার ফাইলে বট কোনো লেখা করে না।': 'master file is never touched by the bot.',
+    '— আপনার মাস্টার ফাইলে বট কোনো লেখা করে না। ডিউটির ইতিহাস Excel-এর লাল ত্রিভূজ (কমেন্ট) থেকে আসে।': '— the bot never writes to your master file. Duty history comes from Excel’s red triangles (comments).',
+    '⬇️ বাটনে বটের ফাইলটা নামিয়ে খুলবে —': '⬇️ This button downloads and opens the bot file —',
+    'করে নেবেন।': 'close it there first.',
+    'ফ্রি পদ্ধতি: WhatsApp খুলবে, বার্তা আগেই লেখা থাকবে — শুধু': 'Free method: WhatsApp opens with the message pre-written — just',
+    'চাপতে হবে। কোনো অ্যাকাউন্ট বা খরচ লাগে না। নম্বর অ্যাপের ভেতরেই সেভ থাকে (ফাইল:': 'press it. No account or cost needed. Numbers are saved inside the app (file:',
+    /* people/sites + whatsapp hints */
+    '⚡ দ্রুত কাজ': '⚡ Quick actions',
+    '📂 উৎস:': '📂 Source:',
+    /* profit page */
+    '📊 মাসিক প্রোফিট —': '📊 Monthly profit —',
+    'ঘণ্টা আসে': 'The hours come',
+    'ফাইল থেকে • সাইট রেট বসালে ইনকাম হিসাব হয় (মালিক থেকে জেনে বসান) • রুম/গ্যাস খরচ নিচে লিখুন।': 'from the Total T file • set a site rate to work out income (confirm the rate with the owner) • write room/gas costs below.',
+    '⚠️ সাইট রেট বসানো নেই — প্রফিট ভুল দেখাচ্ছে। নিচের': '⚠️ Site rates are not set — profit is not correct. In the',
+    'কার্ডে প্রতি লোকের': '💥 Income card below, each person’s',
+    'বসান।': 'set it.',
+    'প্রতি লোকের সারিতে ওর সাইট রেট লিখুন — সেভ হয়ে থাকে।': 'Write each person’s site rate in their row — it stays saved.',
+    'শিহাবের সাইট থেকে পাই': 'We get from Shihab’s sites',
+    'টাকা/ঘণ্টা আর প্রোভাইডারকে দেই': 'AED/hr and pay the provider',
+    '→ প্রোফিট = (12−8) × ঘণ্টা =': '→ profit = (12−8) × hours =',
+    'টাকা/ঘণ্টা।': 'AED/hr.',
+    'কোনো প্রোভাইডারের হিসাব বদলালে ফিরে নিয়ে আসে।': 'Any change to what a provider gets — updates instantly.',
+    'কোনো ফেরোতে ফরকার প্রোভাইডারকে দিয়েছেন — পরিবর্তিত হওয়ার সাথে সাথে ফিরে নিয়ে আসে।': 'Any change to what a provider gets — updates instantly.',
+    /* invoice cards */
+    '🧾 ① পেমেন্ট স্টেটমেন্ট (প্রোভাইডারের জন্য)': '🧾 ① Payment Statement (for the provider)',
+    'Data Sheet থেকে অটো। টাইম শিটের সাথে প্রোভাইডারকে দেওয়ার কাগজ।': 'Auto from the Data Sheet — the paper given to the provider with the time sheet.',
+    'হালনাগাদ করে [💾 সেভ] চাপলে months\\...\\statements\\ ফোল্ডারে PDF সেভ হবে।': '…edit then press [💾 Save] to save the PDF into months\\...\\statements\\.',
+    '🏢 ② কোম্পানি ইনভয়েস (সাইটের ক্লায়েন্ট কোম্পানির জন্য)': '🏢 ② Company Invoice (for the site’s client company)',
+    'যে কোম্পানিতে লোক সাপ্লাই করেছেন — ওদের বিল আনার ইনভয়েস।': 'The company you supplied people to — this is the invoice to bill them.',
+    'প্রতি সাইটের ক্লায়েন্টের নাম এখানে সেট করুন।': 'Set each site’s client name here.',
+    'লোড হচ্ছে…': 'Loading…',
+    'ঘণ্টা': 'Hours',
+    'খরচের নাম (যেমন: রুম ভাড়া)': 'Cost name (e.g. room rent)',
+    'কারণ/নোট (ঐচ্ছিক — ৫০০ অক্ষর)': 'Reason/note (optional — 500 chars)',
+    'যে বার্তা পাঠাতে চান লিখুন...': 'Type the message you want to send...',
+    '📊 Company Status • Total T sheet AUTO 09-2026 বট.xlsx': '📊 Company Status • Total T sheet AUTO 09-2026 বট.xlsx',
+    'সাইটের টাইমশিট → আপনার চেক → ক্লিয়ার → প্রোভাইডারের ইনভয়েস → ডাকা সাইট M+1-15 → বিল M+2-15। টাক ক্লিক চাপে।': 'Site time sheet → your check → clear → provider invoice → send to site M+1-15 → bill M+2-15. One click.',
+    'সাইটের টাইমশিট → আপনার চেক → ক্লিয়ার → প্রোভাইডারের ইনভোয়়েস → ডাকা সাইট M+1-15 → বিল M+2-15। টাক ক্লিক চাপে।': 'Site time sheet → your check → clear → provider invoice → send to site M+1-15 → bill M+2-15. One click.',
+    '👷 লোক ও সাইট': '👷 People & Sites',
+    'সাইট রেট/hr': 'Site rate/hr',
+    'সাইট (due M+1•15)': 'Site (due M+1•15)',
+    'প্রোভাইডার (due M+2•15)': 'Provider (due M+2•15)',
+    /* saved toolbar/status */
+    'সেভ হচ্ছে...': 'Saving...',
+    'সেভ হয়েছে': 'Saved',
+    '—': '—',
+  };
+  /* rebuild keys in composed NFC form so app text always matches */
+  const NK = {};
+  for (const k in A) NK[nfc(k)] = A[k];
+
+  /* ---- Tier B: anchored regex (structure-safe; digits, dates & names preserved) ----
+     patterns stored as strings so they can be NFC-normalized at build time ---- */
+  const B = [
+    ['^মোট ([\\d.,]+) AED ?• ?(\\d+) জন$', 'Total $1 AED • $2 people'],
+    ['^\\(Paid ([\\d.,]+) • বাকি ([\\d.,]+)\\)$', '(Paid $1 • due $2)'],
+    ['^— দেখানো ([\\d.,]+) টি / ([\\d.,]+) AED$', '— showing $1 items / $2 AED'],
+    ['^— দেখানো ([\\d.,]+) টি$', '— showing $1 items'],
+    ['^([\\d.,]+) জন$', '$1 people'],
+    ['^([\\d.,]+) টি', '$1 items'],
+    ['^([\\d.,]+) নম্বর সেট$', '$1 numbers set'],
+    ['^([\\d.,]+) নম্বর সেট / ([\\d.,]+) জন$', '$1 numbers set / $2 people'],
+    ['^📄 ([\\d.,]+) ফাইল • (.+)$', '📄 $1 files • $2'],
+    ['^([\\d.,]+) ফাইল$', '$1 files'],
+    ['^💲 ?([\\d.,]+)/ঘণ্টা$', '💲 $1/hr'],
+    ['^([\\d.,]+)/ঘণ্টা$', '$1/hr'],
+    ['^([\\d.,]+) দিন$', '$1 days'],
+    ['^([\\d.,]+) ঘণ্টা$', '$1 hours'],
+    ['^প্রোভাইডার (\\d+)/(\\d+) দিয়েছি ?$', 'Providers paid $1/$2'],
+    ['^⚠️ বকেয়া \\((.+)\\)$', '⚠️ Overdue ($1)'],
+    ['^🧾 ক্লিয়ার: (.+?) পর্যন্ত • ✅ পেমেন্ট: (.+?) পর্যন্ত$', '🧾 Clear by: $1 • ✅ Payment by: $2'],
+    ['^(.+বট\\.xlsx) • প্রফিট (.+)$', '$1 • profit $2'],
+    ['^(.+?) \\(প্রোভাইডার/রেফারেন্স\\)$', '$1 (Provider/Reference)'],
+    ['^(.+?) \\((\\d+) লোক\\)$', '$1 ($2 people)'],
+    ['^চলমান (\\d+) • বন্ধ (\\d+)$', 'Active $1 • Closed $2'],
+    ['^✅ ?(\\d+) নম্বর সেভ হয়েছে', '✅ $1 numbers saved'],
+    ['^— মোট$', '— Total'],
+    ['^(\\d+) ?টাকা/ঘণ্টা$', '$1 AED/hr'],
+  ];
+  const BRE = B.map(function(x){ try { return [new RegExp(x[0]), x[1]]; } catch (e) { return [null, x[1]]; } });
+
+  /* ---- Tier C: attribute phrases (placeholder / title / aria-label ONLY) ---- */
+  const C = [
+    ['লুকান — ', 'Hide — '],
+    ['এই ধাপটা', 'Click this step'],
+    ['বদলাতে চাপুন', 'to change it'],
+    ['🔍 নাম খুঁজুন', '🔍 Search name'],
+    ['নাম / সাইট / প্রোভাইডার খুঁজুন', 'search name / site / provider'],
+    ['নাম খুঁজুন', 'search name'],
+    ['বট কাজ করে এই কপির উপরে।', 'The bot works on this copy —'],
+    ['আপনার মাস্টার ফাইল', 'your master file'],
+    ['বট কখনো ছোঁয় না।', 'it never touches it.'],
+    ['আপনার মাস্টার এক্সেল থেকে বট কপি নতুন করে নিন', 'Make a fresh bot copy from your master Excel'],
+    ['বটের ফাইলটা নামিয়ে এক্সেলে খুলুন', 'Download the bot file and open it in Excel'],
+    ['তারিখ', 'Date'],
+    ['কারণ', 'Reason'],
+    ['নাম লিখুন', 'Type name'],
+    ['যেমন: ', 'e.g. '],
+    ['যেমন ', 'e.g. '],
+    ['খালি=আজ', 'blank = today'],
+    ['যে বার্তা পাঠাতে চান লিখুন...', 'Type the message you want to send...'],
+    ['খরচের নাম', 'Cost name'],
+    ['(রুম ভাড়া)', '(room rent)'],
+    ['কারণ/নোট', 'Reason/note'],
+    ['ঐচ্ছিক', 'optional'],
+    ['৫০০ অক্ষর', '500 chars'],
+    ['এডিট / কমেন্ট', 'Edit / Comment'],
+    ['WhatsApp পাঠান', 'Send WhatsApp'],
+    ['মুছুন', 'Delete'],
+    ['সাইট ভাগ', 'Site share'],
+    ['(কে কোন সাইটে কত দিন)', '(who worked which site how many days)'],
+    ['হিসাব ক্লিয়ার', 'Clear entry'],
+    ['টাকা দিয়েছি', 'Payment given'],
+    ['টাকা', 'Amount'],
+    ['বট কপি', 'Bot copy'],
+    ['⚡ দ্রুত কাজ', '⚡ Quick actions'],
+    ['👷 লোক ও সাইট', '👷 People & Sites'],
+    ['📊 মাসিক প্রোফিট', '📊 Monthly Profit'],
+    ['পেমেন্ট স্টেটমেন্ট', 'Payment Statement'],
+    ['(প্রোভাইডারের জন্য)', '(for the provider)'],
+    ['কোম্পানি ইনভয়েস', 'Company Invoice'],
+    ['(সাইটের ক্লায়েন্ট কোম্পানির জন্য)', '(for the site’s client company)'],
+    ['তুলতে/খুলতে ক্লিক করুন', 'Click to collapse/open'],
+    ['✓ এখন চালু আছে', '✓ Currently active'],
+    ['এই থিম বসান', 'Apply this theme'],
+    ['সব ট্যাব, অ্যাকশন ও ফিচার খুঁজে পান', 'Find every tab, action & feature'],
+    ['খুঁজে পান', 'find it'],
+    ['বার্তা পাঠাতে চান লিখুন...', 'Type the message you want to send...'],
+    ['কমেন্ট', 'Comment'],
+    ['নম্বর সেট', 'Numbers set'],
+    ['মাসিক চক্র', 'Monthly cycle'],
+    ['যে বার্তা পাঠাতে চান লিখুন', 'Type the message you want to send'],
+    ['🔄 মাস্টার থেকে নাও', '🔄 Import from master'],
+    ['👷 লোক ও সাইট', '👷 People & Sites'],
+    ['📄 বট কপি', '📄 Bot copy'],
+    ['🔄 মাস্', '🔄 Import from master…'],
+  ];
+  const CN = C.map(function(x){ return [nfc(x[0]), x[1]]; });
+
+  /* ---- EN→BN reverse restore: fixes nodes captured while EN was already active ---- */
+  const RV = {};                                   /* English value → Bengali key */
+  for (const k in A){
+    const v = A[k];
+    if (!v || BN_RE.test(v) || v === k) continue;
+    const kk = nfc(v);
+    if (!RV[kk]) RV[kk] = nfc(k);
+  }
+  const BRV = [                                    /* dynamic EN lines → Bengali */
+    [/^Total ([\d.,]+) AED ?• ?(\d+) people$/, 'মোট $1 AED • $2 জন'],
+    [/^\(Paid ([\d.,]+) • due ([\d.,]+)\)$/, '(Paid $1 • বাকি $2)'],
+    [/^Active (\d+) • Closed (\d+)$/, 'চলমান $1 • বন্ধ $2'],
+    [/^— Total$/, '— মোট'],
+  ];
+  const CRV = C.map(function(x){ return [x[1], x[0]]; });   /* EN phrase → BN phrase */
+
+  const ATTRS = ['placeholder', 'title', 'aria-label'];
+
+  const wsNodeOrig = new WeakMap();   /* Text node → original Bengali */
+  const wsElAttr = new WeakMap();     /* Element → {attr: original Bengali} */
+  let wsTxing = false;
+  let wsTxTimer = null;
+  let wsTxLast = 0;
+
+  function wsEnOf(raw){
+    if (!raw || !BN_RE.test(raw)) return null;
+    const k = nfc(raw.trim());
+    if (!k) return null;
+    if (NK[k]) return NK[k];
+    for (let i = 0; i < BRE.length; i++){
+      if (BRE[i][0] && BRE[i][0].test(k)) return k.replace(BRE[i][0], BRE[i][1]);
+    }
+    return null;               /* unknown text → user data, never translated */
+  }
+
+  function wsEnAttr(v){
+    if (!v || !BN_RE.test(v)) return null;
+    const k = nfc(v.trim());
+    if (!k) return null;
+    if (NK[k]) return NK[k];
+    for (let i = 0; i < BRE.length; i++){
+      if (BRE[i][0] && BRE[i][0].test(k)) return k.replace(BRE[i][0], BRE[i][1]);
+    }
+    let out = nfc(v);
+    for (let i = 0; i < CN.length; i++) out = out.split(CN[i][0]).join(CN[i][1]);
+    return BN_RE.test(out) ? null : out;
+  }
+
+  /* one full pass: text nodes + attributes (translate in EN, restore in BN) */
+  function wsTxAll(){
+    if (wsTxing) return;
+    wsTxing = true;
+    try {
+      const wantEn = (typeof WS_LANG !== 'undefined') && WS_LANG === 'en';
+
+      const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+        acceptNode: function(n){
+          const p = n.parentElement;
+          if (!p || p.closest(SKIP_SEL)) return NodeFilter.FILTER_REJECT;
+          const ts = (n.nodeValue || '').trim();
+          if (!ts) return NodeFilter.FILTER_REJECT;
+          if (BN_RE.test(ts)) return NodeFilter.FILTER_ACCEPT;
+          /* BN mode: also visit English leaks (nodes captured while EN was active) */
+          if (wantEn) return NodeFilter.FILTER_REJECT;
+          if (RV[nfc(ts)]) return NodeFilter.FILTER_ACCEPT;
+          for (let i = 0; i < BRV.length; i++){ if (BRV[i][0].test(ts)) return NodeFilter.FILTER_ACCEPT; }
+          return NodeFilter.FILTER_REJECT;
+        }
+      });
+      const nodes = [];
+      let nd;
+      while ((nd = walker.nextNode())) nodes.push(nd);
+      for (let i = 0; i < nodes.length; i++){
+        const node = nodes[i];
+        if (!wsNodeOrig.has(node)) wsNodeOrig.set(node, node.nodeValue);
+        const orig = wsNodeOrig.get(node);
+        let next = orig;
+        if (wantEn){
+          const en = wsEnOf(orig);
+          if (en != null) next = en;
+        } else if (!BN_RE.test(orig)){
+          /* node never had Bengali (captured in EN mode) → reverse-translate */
+          const ko = nfc(orig.trim());
+          let bn = RV[ko] || null;
+          if (!bn){
+            for (let i = 0; i < BRV.length; i++){
+              if (BRV[i][0].test(ko)){ bn = ko.replace(BRV[i][0], BRV[i][1]); break; }
+            }
+          }
+          if (bn) next = bn;
+        }
+        if (next !== node.nodeValue) node.nodeValue = next;
+      }
+
+      document.querySelectorAll('[placeholder],[title],[aria-label]').forEach(function(el){
+        const hitEl = el.closest(SKIP_SEL);
+        if (hitEl && !(hitEl === el && el.tagName === 'TEXTAREA')) return;
+        for (let j = 0; j < ATTRS.length; j++){
+          const a = ATTRS[j];
+          const v = el.getAttribute(a);
+          if (!v || !v.trim()) continue;
+          if (wantEn && !BN_RE.test(v)) continue;   /* EN: only Bengali attrs need work */
+          if (!wsElAttr.has(el)) wsElAttr.set(el, {});
+          const m = wsElAttr.get(el);
+          if (!(a in m)) m[a] = v;
+          let next = m[a];
+          if (wantEn){
+            const en = wsEnAttr(m[a]);
+            if (en) next = en;
+          } else if (!BN_RE.test(m[a])){
+            /* attr captured in EN mode → reverse-translate */
+            const ko = nfc(m[a].trim());
+            let bn = RV[ko] || null;
+            if (!bn){
+              let out = ko;
+              for (let i = 0; i < CRV.length; i++) out = out.split(CRV[i][0]).join(CRV[i][1]);
+              bn = (out !== ko && BN_RE.test(out)) ? out : null;
+            }
+            if (bn) next = bn;
+          }
+          if (next !== el.getAttribute(a)) el.setAttribute(a, next);
+        }
+      });
+    } finally {
+      wsTxing = false;
+    }
+  }
+  window.wsTxAll = wsTxAll;
+
+  /* hook into wsApplyLang so every language switch re-runs the pass */
+  const _wsApplyLang = window.wsApplyLang;
+  window.wsApplyLang = function(l){
+    try { _wsApplyLang.apply(this, arguments); } catch (e) {}
+    try { wsTxAll(); } catch (e) {}
+  };
+
+  /* observer: re-run after every dynamic render (debounced 120ms) */
+  if ('MutationObserver' in window){
+    const obs = new MutationObserver(function(){
+      if (wsTxing) return;
+      if (!(typeof WS_LANG !== 'undefined' && WS_LANG === 'en')) return;
+      const now = Date.now();
+      if (now - wsTxLast > 500){ wsTxLast = now; try { wsTxAll(); } catch (e) {} return; }
+      clearTimeout(wsTxTimer);
+      wsTxTimer = setTimeout(function(){ wsTxLast = Date.now(); try { wsTxAll(); } catch (e) {} }, 120);
+    });
+    if (document.body) obs.observe(document.body, { childList:true, subtree:true, characterData:true });
+    document.addEventListener('DOMContentLoaded', function(){
+      try { wsTxAll(); } catch (e) {}
+      if (document.body) obs.observe(document.body, { childList:true, subtree:true, characterData:true });
+    });
+  }
+})();
+
+</script>
+<script>
+/* ============================================================================
    WORKSPACE SETTINGS — theme cards, language, card controls.
    The theme key is shared with AI Time Keeper (atk_theme) so both pages always
    look the same. Dark is the default.
