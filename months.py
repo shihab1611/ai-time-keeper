@@ -1,14 +1,14 @@
-"""Per-month folders for AI Time Keeper.
+"""Per-month folders for AI Time Keeper.Every month gets its own folder holding everything that belongs to it:
 
-Every month gets its own folder holding everything that belongs to it:
-
-    months\\SEP-2026\\Data sheet sep-26.xlsx
-    months\\SEP-2026\\Total T sheet AUTO 09-2026 বট.xlsx
-    months\\SEP-2026\\2026-09_profit_duty.json      (profit/cycle snapshot)
+    months\\SEP-2026\\data sheet and total time sheet\\Data sheet sep-26.xlsx
+    months\\SEP-2026\\data sheet and total time sheet\\Total T sheet AUTO 09-2026 বট.xlsx
+    months\\SEP-2026\\statements\\     (খালি — শুধু স্টেটমেন্ট অপশনে সেভ চাপলে ফাইল আসে)
+    months\\SEP-2026\\invoice\\         (খালি — শুধু ইনভয়েস অপশনে সেভ চাপলে ফাইল আসে)
 
 month_clear() closes the current month and opens the next one. The master
-template and the master data files are never written to -- everything here is
-a copy.
+template and the master data files are never written to -- everything here
+is a copy. মাস ক্লিয়ার শুধু ডাটা শিট + টোটাল শিট সেভ করে; স্টেটমেন্ট/ইনভয়েস
+ফোল্ডার তৈরি হয় খালি — ওগুলো কেবল নিজেদের অপশন থেকে সেভ করলেই ভরে।
 """
 import os
 import re
@@ -24,6 +24,11 @@ MONTH_ABBR = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN",
 # profit/cycle side-files that belong to a month
 SIDE_FILES = ["profit_srates.json", "profit_duty.json", "profit_exp.json",
               "profit_pay.json", "profit_rates.json", "cycle.json"]
+
+# মাস-ফোল্ডারের নির্ধারিত ৩টা সাব-ফোল্ডার
+DATA_SUB = "data sheet and total time sheet"
+STATEMENTS_SUB = "statements"
+INVOICE_SUB = "invoice"
 
 
 def month_label(m, y):
@@ -174,18 +179,23 @@ def month_clear(data_path, tmpl_path, month, year, do_generate=True,
         hours = 0
 
     dest = ensure_dir(month, year)
+    # ৩টা সাব-ফোল্ডার: ডাটা+টোটাল, স্টেটমেন্ট (খালি), ইনভয়েস (খালি)
+    data_dir = os.path.join(dest, DATA_SUB)
+    os.makedirs(data_dir, exist_ok=True)
+    os.makedirs(os.path.join(dest, STATEMENTS_SUB), exist_ok=True)
+    os.makedirs(os.path.join(dest, INVOICE_SUB), exist_ok=True)
     saved = []
 
     # ---- 1. the month's data sheet ----
     if backup_fn:
         backup_fn(data_path)
-    saved.append(_copy(data_path, os.path.join(dest, os.path.basename(data_path))))
+    saved.append(_copy(data_path, os.path.join(data_dir, os.path.basename(data_path))))
 
     # ---- 2. the month's Total T (generated here so it is never forgotten) ----
     total_name = None
     if do_generate and workers:
         total_name = "Total T sheet AUTO %02d-%d বট.xlsx" % (month, year)
-        tmp_out = os.path.join(dest, total_name)
+        tmp_out = os.path.join(data_dir, total_name)
         try:
             generate_total_sheet(data_path, tmpl_path, tmp_out, month, year)
             with open(tmp_out, "rb") as f:
@@ -201,8 +211,8 @@ def month_clear(data_path, tmpl_path, month, year, do_generate=True,
                     pass
             raise
 
-    # ---- 3. that month's profit/cycle snapshot ----
-    saved += _snapshot_side_files(dest, month, year)
+    # ---- 3. (ব্যবহারকারীর দাবি) অতিরিক্ত সাইড-ফাইল আর README ফোল্ডারে
+    #      ফেলা হয় না — শুধু ডাটা শিট + টোটাল শিট।
 
     # ---- 4. the next month's data sheet: same people, empty days ----
     # নতুন মাসের শিট ইমপুট ফোল্ডারেই বসবে — ডাটা শিট আর মাস্টার সবসময় সেখানেই থাকে
@@ -250,8 +260,7 @@ def month_clear(data_path, tmpl_path, month, year, do_generate=True,
     except Exception:
         pass
 
-    saved.append(_readme(dest, month, year, os.path.basename(data_path),
-                         total_name, workers, hours))
+    # (ব্যবহারকারীর দাবি) README.txt আর প্রফিট-JSON কপি এখন ফোল্ডারে ফেলা হয় না
 
     return {
         "closedMonth": month_label(month, year),

@@ -812,6 +812,21 @@ def safe_copy_out(src, dst):
         tagged = name != os.path.basename(dst)
         dst = os.path.join(folder, name)
     existed = os.path.isfile(dst)
+    # একই ফাইলের উপরে লেখা যায় না (WinError 32) — সেক্ষেত্রে " -কপি" নামে নতুন ফাইলে সেভ
+    try:
+        same = os.path.isfile(src) and os.path.isfile(dst) and os.path.samefile(src, dst)
+    except OSError:
+        same = False
+    if same:
+        stem, ext = os.path.splitext(name)
+        cand, i = stem + " -কপি" + ext, 2
+        while os.path.exists(os.path.join(folder, cand)):
+            cand = "{0} -কপি {1}{2}".format(stem, i, ext)
+            i += 1
+        name = cand
+        dst = os.path.join(folder, name)
+        tagged = True
+        existed = False
     bak = backup_file(dst) if existed else None
     shutil.copy2(src, dst)
     try:

@@ -1,52 +1,54 @@
 {
- "settings": {
-  "invoice_start_no": 5,
-  "advance_source": "balance",
-  "currency": "AED",
-  "assigned": {
-   "mr.nur|9|2026": 1,
-   "mr.jalil|9|2026": 2,
-   "mr.abzol|9|2026": 3,
-   "mr.somuj|9|2026": 4
+  "settings": {
+    "invoice_start_no": 7,
+    "advance_source": "balance",
+    "currency": "AED",
+    "assigned": {
+      "mr.nur|9|2026": 1,
+      "mr.jalil|9|2026": 2,
+      "mr.abzol|9|2026": 3,
+      "mr.somuj|9|2026": 4,
+      "mr.nur|10|2026": 5,
+      "mr.jalil|10|2026": 6
+    },
+    "payto_client": "SHOMLUJ MIAH",
+    "payto_address": "AJMAN, UAE"
   },
-  "payto_client": "SHOMLUJ MIAH",
-  "payto_address": "AJMAN, UAE"
- },
- "company": {
-  "name": "MANPOWER MAINTENANCE",
-  "contact": "050 2571 319",
-  "email": "roxyrahat0002@gmail.com"
- },
- "providers": {
-  "mr.nur": {
-   "client": "SHOMLUJ MIAH",
-   "address": "AJMAN, UAE",
-   "display": "Nur vai",
-   "from_name": "Mr. Nur"
+  "company": {
+    "name": "MANPOWER MAINTENANCE",
+    "contact": "050 2571 319",
+    "email": "roxyrahat0002@gmail.com"
   },
-  "mr.jalil": {
-   "client": "JALIL",
-   "address": "UAE",
-   "display": "Jalil vai",
-   "from_name": "Mr. Jalil"
-  },
-  "mr.abzol": {
-   "client": "ABZOL",
-   "address": "UAE",
-   "display": "Abzol vai",
-   "from_name": "Mr. Abzol"
-  },
-  "mr.somuj": {
-   "client": "SOMUJ",
-   "address": "UAE",
-   "display": "Mr.Samuj",
-   "from_name": "Mr. Samuj"
-  },
-  "mr.amin": {
-   "client": "AMIN",
-   "address": "UAE",
-   "display": "Mr.Amin",
-   "from_name": "Mr. Amin"
+  "providers": {
+    "mr.nur": {
+      "client": "SHOMLUJ MIAH",
+      "address": "AJMAN, UAE",
+      "display": "Nur vai",
+      "from_name": "Mr. Nur"
+    },
+    "mr.jalil": {
+      "client": "JALIL",
+      "address": "UAE",
+      "display": "Jalil vai",
+      "from_name": "Mr. Jalil"
+    },
+    "mr.abzol": {
+      "client": "ABZOL",
+      "address": "UAE",
+      "display": "Abzol vai",
+      "from_name": "Mr. Abzol"
+    },
+    "mr.somuj": {
+      "client": "SOMUJ",
+      "address": "UAE",
+      "display": "Mr.Samuj",
+      "from_name": "Mr. Samuj"
+    },
+    "mr.amin": {
+      "client": "AMIN",
+      "address": "UAE",
+      "display": "Mr.Amin",
+      "from_name": "Mr. Amin"
+    }
   }
- }
 }

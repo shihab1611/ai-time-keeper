@@ -28,7 +28,7 @@ KEEP = 14                    # প্রতিটি জায়গাযে �
 BACKUP_HOUR = 21              # প্রতিদিন রাত ৯টা (সার্ভার চালু থাকলে)
 MAX_FILE = 40 * 1024 * 1024   # একটা ফাইলের সর্বোচ্চ ৪০ MB
 
-INCLUDE_DIRS = ["input output", "extensions", "months", "logs"]
+INCLUDE_DIRS = ["input output", "extensions", "months", "logs", "LOCKED"]
 INCLUDE_ROOT_EXT = (".html", ".js", ".py", ".json", ".md", ".txt",
                     ".bat", ".users", ".conf", ".ps1")
 SKIP_NAMES = {"__pycache__", ".git"}

@@ -93,6 +93,8 @@ th,td{border:1px solid rgba(255,255,255,.18);padding:6px 8px;text-align:left}th{
 @media print{
 @page{size:A4;margin:10mm}
 body *{visibility:hidden!important}
+body.printingOnly *{visibility:hidden!important}
+body.printingOnly .printTarget,body.printingOnly .printTarget *{visibility:visible!important}
 .inv-paper,.inv-paper *{visibility:visible!important}
 .inv-paper{position:absolute;left:0;top:0;box-shadow:none;border-radius:0;max-width:100%;width:190mm;padding:0;margin:0;font-size:11px;line-height:1.3}
 .inv-paper .band{padding:12px 16px;gap:10px}
@@ -1579,6 +1581,33 @@ body[data-theme="paper"].themeFade::after{
 <div class="hint" style="margin-top:6px">💡 নাম/ঠিকানা/রেট একবার সেভ করলেই পরের মাসেও থাকবে। প্রিভিউতে Unit Price বদলে [💾 সেভ] চাপলে months\...\invoice\ ফোল্ডারে PDF সেভ হবে। দুই কার্ডই একই প্রিভিউ বক্স ব্যবহার করে।</div>
 </div>
 </div>
+
+<div class="card" style="margin-top:14px">
+<h2>📄 ③ Add Invoice — আলাদা ইনভয়েস (কোম্পানির নামে)</h2>
+<div class="hint">কোম্পানি/সাইটের নাম → মাস বেছে নিন → সব প্রোভাইডারের লোক এক লিস্টে → লোক সিলেক্ট → রেট বসান → ঘণ্টা অটো (সেই মাসের ডাটা শিট) → প্রিভিউ → Unit Price-এ প্রতি লোকের আলাদা রেট → Save → invoice\ ফোল্ডারে PDF (নম্বর চেইন চলবে)।</div>
+<div class="bigadd">
+<div style="flex:2;min-width:200px"><label class="hint">কোম্পানি / সাইটের নাম</label><input id="addinv_client" placeholder="যেমন: SHOMLUJ MIAH"></div>
+<div style="flex:2;min-width:200px"><label class="hint">ঠিকানা</label><input id="addinv_addr" placeholder="যেমন: AJMAN, UAE"></div>
+<div style="flex:1;min-width:110px"><label class="hint">মাস</label><select id="addinv_month" onchange="addInvLoad()"></select></div>
+<div style="flex:0 0 auto;min-width:86px"><label class="hint">সাল</label><select id="addinv_year" onchange="addInvLoad()"></select></div>
+<div style="flex:0 0 auto;align-self:flex-end"><button class="ghost" onclick="addInvLoad()">🔄 লোড ওয়ার্কার</button></div>
+</div>
+<div class="bigadd" style="margin-top:6px">
+<div style="flex:1;min-width:180px"><label class="hint">লোক সিলেক্ট করুন (Ctrl চেপে একাধিক)</label><select id="addinv_worker" multiple size="5" style="height:auto"></select></div>
+<div style="flex:1;min-width:150px"><label class="hint">রেট (AED/hr)</label><input id="addinv_rate" type="number" step="0.25" placeholder="রেট বসান"></div>
+<div style="flex:0 0 auto;align-self:flex-end"><button class="ghost" onclick="addInvSetRate()">💰 সিলেক্ট লোকে রেট বসাও</button></div>
+</div>
+<div class="hint">💡 ঘণ্টা অটো আসবে সেই মাসের ডাটা শিট থেকে (মাস/সাল বদলালেই আবার লোড হবে)। প্রতি লোকের আলাদা রেট প্রিভিউ টেবিলের Unit Price ঘরে বদলান — সেভ হবে সেই রেটেই।</div>
+<div class="status" id="addinvMsg"></div>
+<div id="addinvPreviewWrap" style="display:none">
+<div style="margin:8px 0;text-align:right;display:flex;gap:8px;justify-content:flex-end">
+    <button class="ghost" onclick="addInvSave()">💾 ফোল্ডারে PDF সেভ করুন</button>
+    <button class="ghost" onclick="addInvPrint()">🖨️ প্রিন্ট / PDF</button>
+</div>
+<div id="addinvPaper"></div>
+</div>
+</div>
+</div>
 <div id="ws4" style="display:none"><div class="card"><h2>📢 Notice/Task</h2><div class="hint">পরের ধাপে বানানো হবে — ডিউটি, ঘোষণা।</div></div></div>
 <div id="ws5" style="display:none"><div class="card"><h2>📧 Mail</h2><div class="hint">পরের ধাপে বানানো হবে — Total T মেইলে পাঠানো।</div></div></div>
 
@@ -1807,6 +1836,11 @@ function wsSetLang(l){
   try { localStorage.setItem('atk_lang', l); localStorage.setItem('ws_lang', l); } catch (e) {}
   wsApplyLang(l);
   wsPaintBar();
+  /* Add Invoice-এর লোক-তালিকা ভাষা অনুযায়ী আবার বানাতে হবে */
+  try {
+    const s = document.getElementById('addinv_worker');
+    if (typeof addInvLoad === 'function' && s && s.options && s.options.length) addInvLoad();
+  } catch (e) {}
 }
 
 /* ============================================================================
@@ -2151,6 +2185,20 @@ document.addEventListener('DOMContentLoaded', () => {
   const A = {
     /* top bar / side */
     'সংরক্ষিত': 'Saved',
+    /* ③ Add Invoice card */
+    '📄 ③ Add Invoice — আলাদা ইনভয়েস (কোম্পানির নামে)': '📄 ③ Add Invoice — separate invoice (on your company name)',
+    'কোম্পানি/সাইটের নাম → মাস বেছে নিন → সব প্রোভাইডারের লোক এক লিস্টে → লোক সিলেক্ট → রেট বসান → ঘণ্টা অটো (সেই মাসের ডাটা শিট) → প্রিভিউ → Unit Price-এ প্রতি লোকের আলাদা রেট → Save → invoice\\ ফোল্ডারে PDF (নম্বর চেইন চলবে)।': 'Company / site name → pick the month → all providers’ workers in one mixed list → select workers → set rate → hours auto (that month’s data sheet) → preview → per-worker rate in Unit Price → Save → PDF in the invoice\\ folder (numbering chain continues).',
+    'কোম্পানি / সাইটের নাম': 'Company / site name',
+    'ঠিকানা': 'Address',
+    'মাস': 'Month',
+    'সাল': 'Year',
+    '🔄 লোড ওয়ার্কার': '🔄 Load workers',
+    'লোক সিলেক্ট করুন (Ctrl চেপে একাধিক)': 'Select workers (Ctrl = multiple)',
+    'রেট (AED/hr)': 'Rate (AED/hr)',
+    '💰 সিলেক্ট লোকে রেট বসাও': '💰 Apply rate to selected',
+    '💡 ঘণ্টা অটো আসবে সেই মাসের ডাটা শিট থেকে (মাস/সাল বদলালেই আবার লোড হবে)। প্রতি লোকের আলাদা রেট প্রিভিউ টেবিলের Unit Price ঘরে বদলান — সেভ হবে সেই রেটেই।': '💡 Hours load automatically from that month’s data sheet (reload when you change month/year). Edit the per-worker rate in the preview’s Unit Price cell — that is what gets saved.',
+    '💾 ফোল্ডারে PDF সেভ করুন': '💾 Save PDF to folder',
+    '🖨️ প্রিন্ট / PDF': '🖨️ Print / PDF',
     'খুঁজুন': 'Search',
     'বাংলা': 'বাংলা',
     'Company Workspace • Local only • Time Keeper থেকে আলাদা সেকশন': 'Company Workspace • Local only • Separate from Time Keeper section',
@@ -2411,6 +2459,7 @@ document.addEventListener('DOMContentLoaded', () => {
     ['আপনার মাস্টার এক্সেল থেকে বট কপি নতুন করে নিন', 'Make a fresh bot copy from your master Excel'],
     ['বটের ফাইলটা নামিয়ে এক্সেলে খুলুন', 'Download the bot file and open it in Excel'],
     ['তারিখ', 'Date'],
+    ['রেট বসান', 'Enter rate'],
     ['কারণ', 'Reason'],
     ['নাম লিখুন', 'Type name'],
     ['যেমন: ', 'e.g. '],

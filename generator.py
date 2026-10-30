@@ -871,7 +871,8 @@ def generate_total_sheet(data_path, template_path, output_path, month=9, year=20
             else:
                 # clone "Nur vai" as template for new provider
                 src = wb["Nur vai"]
-                new_title = (prov_raw or "New").strip()[:28] or "New Provider"
+                # কনফিগে নাম থাকলে সেটাই শিট-নাম (যেমন Jalil vai), নাহলে ডাটা শিটের প্রোভাইডার নাম
+                new_title = (sheet_name or prov_raw or "New").strip()[:28] or "New Provider"
                 # avoid collision
                 base = new_title
                 i = 2

@@ -504,7 +504,9 @@ def make_pdf(data, out_path, kind="statement"):
     pdf.set_font("helvetica", "", 11)
     pdf.set_text_color(*DARK)
     pdf.set_xy(colL, y + 5.5)
-    pdf.cell(W * 0.55, 6, "%s," % data["client"], align="L")
+    # add_invoice মডিউলে কীগুলো client_name/address নামে থাকে — fallback দিই
+    _client = data.get("client") or data.get("client_name", "") or data.get("client_key", "")
+    pdf.cell(W * 0.55, 6, "%s," % _client, align="L")
     pdf.set_xy(colR, y + 5.5)
     pdf.cell(W * 0.42, 6, data.get("from_name", ""), align="L")
     pdf.set_font("helvetica", "", 9.5)
@@ -551,7 +553,7 @@ def make_pdf(data, out_path, kind="statement"):
         pdf.set_font("helvetica", "", 9)
         nm = str(wkr["name"])[:34]
         pdf.set_xy(colx[0], ry)
-        pdf.cell(colw[0], rowh, str(wkr["sl"]), align="C")
+        pdf.cell(colw[0], rowh, str(wkr.get("sl", idx + 1)), align="C")
         pdf.set_xy(colx[1] + 2, ry)
         pdf.cell(colw[1] - 2, rowh, nm, align="L")
         vals = ["{:.2f}".format(wkr["hours"]), "{:.2f}".format(wkr["rate"]),

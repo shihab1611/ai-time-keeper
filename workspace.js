@@ -882,7 +882,9 @@ function _peRow(w,i){
  '<td class="num"><input class="peRate" data-i="'+i+'" type="number" step="0.25" value="'+Number(w.rate||0)+'"></td>'+
  '<td class="num amt">'+_fm(w.amount)+'</td><td class="num net">'+_fm(w.amount)+'</td></tr>';
 }
-function igenRender(){
+let IGEN_PAPER='igenPaper';           // কোন বাক্সে প্রিভিউ দেখাবে
+function igenRender(targetId){
+ IGEN_PAPER=targetId||'igenPaper';
  const d=IGEN_BASE;if(!d)return;
  const rows=d.workers.map((w,i)=>_peRow(w,i)).join('');
  const isInv=(IGEN_KIND==='inv');
@@ -918,15 +920,17 @@ function igenRender(){
  '</div>'+
  '<div class="fbar">'+esc(d.company.name)+'&nbsp;&nbsp;·&nbsp;&nbsp;'+(isInv?'COMPANY INVOICE':'PAYMENT STATEMENT')+'&nbsp;&nbsp;·&nbsp;&nbsp;Computer generated document</div>'+
  '</div>';
- const P=document.getElementById('igenPaper');
+ const P=document.getElementById(IGEN_PAPER||'igenPaper');
  P.innerHTML=html;
  P.querySelectorAll('.peRate').forEach(inp=>inp.addEventListener('input',peRecalc));
  ['peGas','peAdv'].forEach(id=>{const el=document.getElementById(id);if(el)el.addEventListener('input',peRecalc)});
 }
 function peRecalc(){
  const d=IGEN_BASE;if(!d)return;const isInv=(IGEN_KIND==='inv');
+ const box=document.getElementById(IGEN_PAPER||'igenPaper');
+ const q=id=>box?box.querySelector('#'+id):null;
  let total=0;
- document.querySelectorAll('#igenPaper .peRate').forEach(inp=>{
+ (box?box.querySelectorAll('.peRate'):[]).forEach(inp=>{
   const i=+inp.dataset.i;const w=d.workers[i];
   const rate=Number(inp.value)||0;const amt=Math.round(w.hours*rate*100)/100;
   total+=amt;
@@ -936,17 +940,18 @@ function peRecalc(){
  total=Math.round(total*100)/100;
  let gas=0,adv=0;
  if(!isInv){
-  gas=Number((document.getElementById('peGas')||{}).value)||0;
-  adv=Number((document.getElementById('peAdv')||{}).value)||0;
+  gas=Number((q('peGas')||{}).value)||0;
+  adv=Number((q('peAdv')||{}).value)||0;
  }
  const net=Math.round((total-gas-adv)*100)/100;
- const tEl=document.getElementById('peTotal');if(tEl)tEl.textContent=_fm(total);
- const nEl=document.getElementById('peNet');if(nEl)nEl.textContent=_fm(net);
- const wEl=document.getElementById('peWords');if(wEl)wEl.textContent=amtWords(net);
+ const tEl=q('peTotal');if(tEl)tEl.textContent=_fm(total);
+ const nEl=q('peNet');if(nEl)nEl.textContent=_fm(net);
+ const wEl=q('peWords');if(wEl)wEl.textContent=amtWords(net);
 }
-function _peCollectRates(){
+function _peCollectRates(paperId){
  const rates={};
- document.querySelectorAll('#igenPaper .peRate').forEach(inp=>{
+ const box=document.getElementById(paperId||IGEN_PAPER||'igenPaper');
+ (box?box.querySelectorAll('.peRate'):[]).forEach(inp=>{
   const i=+inp.dataset.i;const w=IGEN_BASE.workers[i];
   rates[w.name]=Number(inp.value)||0;
  });
@@ -962,11 +967,13 @@ async function igenSave(){
     prov: IGEN_BASE.prov_key,
     month: parseInt(curMonth, 10),
     year: parseInt(curYear, 10),
-    rates: _peCollectRates()
+    rates: _peCollectRates('igenPaper')
  };
  if(!isInv){
-  body.adv=Number((document.getElementById('peAdv')||{}).value)||0;
-  body.gas=Number((document.getElementById('peGas')||{}).value)||0;
+  const _ibox=document.getElementById('igenPaper');   // স্টেটমেন্টের নিজের প্রিভিউ বাক্স
+  const _iq=id=>_ibox?_ibox.querySelector('#'+id):null;
+  body.adv=Number((_iq('peAdv')||{}).value)||0;
+  body.gas=Number((_iq('peGas')||{}).value)||0;
   body.client=(document.getElementById('igen_payto')||{}).value||'';
   body.address=(document.getElementById('igen_payaddr')||{}).value||'';
  }
@@ -1044,3 +1051,170 @@ async function cinvPreview(){
   if(m){m.className='status ok';m.textContent='✅ ইনভয়েস প্রস্তুত — Unit Price এডিট করে সেভ করুন'}
  }catch(e){if(m){m.className='status err';m.textContent='❌ '+e}}
 }
+
+// ================= ADD INVOICE =================
+/* ডিফল্ট ইংরেজি — বাংলা শুধু ইউজার "বাং" চাপলে */
+function AI_T(bn,en){
+ try{ return (typeof WS_LANG!=='undefined' && WS_LANG==='bn') ? bn : (en===undefined?bn:en); }
+ catch(e){ return bn; }
+}
+/* শুধু ইনভয়েস বাক্সটুকু প্রিন্ট — পুরো পেজ নয় */
+function printOnly(containerId){
+ const el=document.getElementById(containerId);
+ if(!el||!el.querySelector('.inv-paper')){alert(AI_T('আগে প্রিভিউ দেখুন','See the preview first'));return;}
+ el.classList.add('printTarget');
+ document.body.classList.add('printingOnly');
+ const done=()=>{
+  document.body.classList.remove('printingOnly');
+  el.classList.remove('printTarget');
+  window.removeEventListener('afterprint',done);
+ };
+ window.addEventListener('afterprint',done);
+ try{ window.print(); }catch(e){ done(); }
+ setTimeout(done,2500);
+}
+async function addInvLoad(){
+ try{
+  const ms=document.getElementById('addinv_month');
+  const ys=document.getElementById('addinv_year');
+  const q=[];
+  if(ms&&ms.value)q.push('month='+encodeURIComponent(ms.value));
+  if(ys&&ys.value)q.push('year='+encodeURIComponent(ys.value));
+  let u='/api/ws/add-invoice-providers';
+  if(q.length)u+='?'+q.join('&');
+  const r=await fetch(u);const j=await r.json();
+  if(!j.ok)throw j.error||'load failed';
+  if(ms){
+   if(!ms.options.length){
+    ms.innerHTML='';
+    for(const [k,v] of Object.entries(j.month_names||{})){
+     ms.innerHTML+='<option value="'+k+'">'+esc(v)+'</option>';
+    }
+   }
+   ms.value=String(j.data_month||new Date().getMonth()+1);
+  }
+  if(ys){
+   if(!ys.options.length){
+    const base=parseInt(j.data_year,10)||new Date().getFullYear();
+    let h='';
+    for(let y=base+1;y>=base-2;y--)h+='<option value="'+y+'">'+y+'</option>';
+    ys.innerHTML=h;
+   }
+   if(j.data_year)ys.value=String(j.data_year);
+  }
+  const sel=document.getElementById('addinv_worker');
+  if(sel){
+   const keep=[...sel.options].filter(o=>o.selected).map(o=>o.value);
+   const bn=(typeof WS_LANG!=='undefined'&&WS_LANG==='bn');
+   const html=(j.workers||[]).map(function(w){
+    const unit=bn?' ঘণ্টা (রেট ':' hrs (rate ';
+    const txt=w.name+' — '+Number(w.hours||0)+unit+Number(w.rate||0)+')';
+    const on=keep.indexOf(w.name)>=0?' selected':'';
+    return '<option value="'+esc(w.name)+'" data-hours="'+Number(w.hours||0)+'" data-rate="'+Number(w.rate||0)+'"'+on+'>'+esc(txt)+'</option>';
+   }).join('');
+   sel.innerHTML=html||('<option>'+AI_T('কোনো ওয়ার্কার নেই','No workers found')+'</option>');
+  }
+  const m=document.getElementById('addinvMsg');
+  if(m){m.className='status ok';m.textContent='✅ '+AI_T('ওয়ার্কার লোড হয়েছে — মাস ','Workers loaded — month ')+(j.month_name||'')}
+ }catch(e){const m=document.getElementById('addinvMsg');if(m){m.className='status err';m.textContent='❌ '+e}}
+}
+function addInvSetRate(){
+ const sel=document.getElementById('addinv_worker');
+ const rateInput=document.getElementById('addinv_rate');
+ if(!sel||!rateInput)return;
+ const rate=Number(rateInput.value)||0;
+ const bn=(typeof WS_LANG!=='undefined'&&WS_LANG==='bn');
+ const opts=sel.options;
+ let n=0;
+ for(let i=0;i<opts.length;i++){
+  if(opts[i].selected){
+   opts[i].text=opts[i].text.replace(/\((রেট|rate) [\d.]+\)/,'('+(bn?'রেট':'rate')+' '+rate+')');
+   opts[i].dataset.rate=rate;
+   n++;
+  }
+ }
+ const m=document.getElementById('addinvMsg');
+ if(m){m.className='status ok';m.textContent='✅ '+AI_T(n+' জন ওয়ার্কারে রেট বসানো হয়েছে: ','Rate set for '+n+' worker(s): ')+rate}
+}
+async function addInvPreview(){
+ const client=document.getElementById('addinv_client')||{};
+ const addr=document.getElementById('addinv_addr')||{};
+ const monthSel=document.getElementById('addinv_month')||{};
+ const yearSel=document.getElementById('addinv_year')||{};
+ const sel=document.getElementById('addinv_worker')||{};
+ const m=document.getElementById('addinvMsg');
+ if(!client.value){if(m){m.className='status err';m.textContent='⚠️ '+AI_T('কোম্পানি/সাইটের নাম দিন','Enter the company / site name')}return;}
+ const opts=sel.options;
+ const selectedNames=[];
+ for(let i=0;i<opts.length;i++){
+  if(opts[i].selected)selectedNames.push(opts[i].value);
+ }
+ if(selectedNames.length===0){if(m){m.className='status err';m.textContent='⚠️ '+AI_T('কমপক্ষে একজন ওয়ার্কার সিলেক্ট করুন','Select at least one worker')}return;}
+ const month=monthSel.value||new Date().getMonth()+1;
+ const year=parseInt(yearSel.value,10)||new Date().getFullYear();
+ // রেট ডিক্ট: আগে ড্রপডাউন, তারপর প্রিভিউ-বাক্সে এডিট করা রেট জিতবে
+ const rates={};
+ for(let i=0;i<opts.length;i++){
+  if(opts[i].selected)rates[opts[i].value]=Number(opts[i].dataset.rate||0);
+ }
+ const oldPaper=document.getElementById('addinvPaper');
+ if(oldPaper){
+  oldPaper.querySelectorAll('.peRate').forEach(inp=>{
+   const i=+inp.dataset.i;const w=ADDINV_BASE&&ADDINV_BASE.workers&&ADDINV_BASE.workers[i];
+   if(w&&rates.hasOwnProperty(w.name))rates[w.name]=Number(inp.value)||0;
+  });
+ }
+ if(m){m.className='status';m.textContent='⏳ '+AI_T('ইনভয়েস তৈরি হচ্ছে...','Building invoice...')}
+ try{
+  const r=await fetch('/api/ws/add-invoice?client_key='+encodeURIComponent(client.value)
+   +'&client_name='+encodeURIComponent(client.value)
+   +'&client_address='+encodeURIComponent(addr.value||'')
+   +'&month='+encodeURIComponent(month)
+   +'&year='+encodeURIComponent(year)
+   +'&rates='+encodeURIComponent(JSON.stringify(rates)));
+  const j=await r.json();
+  if(!j.ok)throw j.error||'failed';
+  ADDINV_BASE=j;IGEN_BASE=j;IGEN_KIND='inv';
+  igenRender('addinvPaper');
+  const wrap=document.getElementById('addinvPreviewWrap');
+  if(wrap)wrap.style.display='';
+  const paper=document.getElementById('addinvPaper');
+  if(paper)paper.scrollIntoView({behavior:'smooth',block:'start'});
+  if(m){
+   if(j.warn){m.className='status err';m.textContent='⚠️ '+AI_T(j.warn,'Hours are empty for this month — check the selected month');}
+   else{m.className='status ok';m.textContent='✅ '+AI_T('ইনভয়েস প্রস্তুত — লোকের রেট এডিট করে সেভ করুন','Invoice ready — edit per-worker rate, then save');}
+  }
+ }catch(e){if(m){m.className='status err';m.textContent='❌ '+e}}
+}
+async function addInvSave(){
+ if(!ADDINV_BASE){alert(AI_T('আগে প্রিভিউ দেখুন','See the preview first'));return;}
+ const m=document.getElementById('addinvMsg');
+ if(m){m.className='status';m.textContent='⏳ '+AI_T('PDF সেভ হচ্ছে...','Saving PDF...')}
+ try{
+  // প্রিভিউ-বাক্সে লেখা রেটই যাবে (ইউজার ওখানে বদলেছে)
+  let rates=_peCollectRates('addinvPaper');
+  if(!Object.keys(rates).length){
+   rates={};
+   const sel=document.getElementById('addinv_worker');
+   if(sel)for(let i=0;i<sel.options.length;i++){
+    if(sel.options[i].selected)rates[sel.options[i].value]=Number(sel.options[i].dataset.rate||0);
+   }
+  }
+  const body={
+   client_key:ADDINV_BASE.client_key||'',
+   client_name:ADDINV_BASE.client_name||'',
+   client_address:ADDINV_BASE.client_address||'',
+   month:ADDINV_BASE.month||new Date().getMonth()+1,
+   year:ADDINV_BASE.year||new Date().getFullYear(),
+   rates:rates
+  };
+  const r=await fetch('/api/ws/add-invoice-save-one',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const j=await r.json();
+  if(!j.ok)throw j.error||'failed';
+  if(m){m.className='status ok';m.textContent='✅ '+AI_T('সেভ হয়েছে → ','Saved → ')+j.file+'   ('+AI_T('নম্বর ','No. ')+j.invoice_no+')'}
+ }catch(e){if(m){m.className='status err';m.textContent='❌ '+e}}
+}
+function addInvPrint(){
+ printOnly('addinvPaper');
+}
+
