@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: ai-time-keeper
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ai-time-keeper-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+databases:
+  - name: ai-time-keeper-db
+    plan: free
