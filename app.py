@@ -7,7 +7,7 @@ AI Time Keeper — Cloud (Flask) version
 
 import os
 from datetime import datetime
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, abort
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import (
     LoginManager, UserMixin, login_user, logout_user,
@@ -220,16 +220,13 @@ def labor_assign_save():
     return jsonify({'ok': True, 'person': person, 'provider': provider})
 
 
-# ---------------------------------------------------------------- ইনভয়escape প্রিভিউ (① Statement)
+# ---------------------------------------------------------------- ইনভয়েস প্রিভিউ (① Statement)
 @app.route('/api/ws/invoice-gen', methods=['GET'])
 @login_required
 def invoice_gen():
     prov = request.args.get('prov', '')
     month = int(request.args.get('month', 0) or 0)
     year = int(request.args.get('year', 0) or 0)
-
-    # এখানে আপনার পুরনো invoice_gen লজিক ডাটাবেজের ওপর চালানো যাবে
-    # Protótיפ হিসেবে হালকা রিটার্ন করছি
     return jsonify({
         'ok': True,
         'invoice_no': '01',
@@ -239,7 +236,7 @@ def invoice_gen():
         'workers': [],
         'total': 0.0,
         'net': 0.0,
-        'message': 'ডাটাবেজ-ভিত্তিক Statement প্রিভিউ — পুরনো লজিক aquí add করুন'
+        'message': 'ডাটাবেজ-ভিত্তিক Statement প্রিভিউ — পুরনো লগিক এখানে যোগ করুন'
     })
 
 
@@ -252,12 +249,10 @@ def add_invoice_preview():
     client_address = (request.args.get('client_address') or '').strip()
     month = int(request.args.get('month', 0) or 0)
     year = int(request.args.get('year', 0) or 0)
-    rates_raw = request.args.get('rates', '{}')
 
     if not client_key:
         return jsonify({'ok': False, 'error': 'কোম্পানি/সাইটের নাম দিন'}), 400
 
-    # পুরনো add_invoice লজিক ডাটাবেজের ওপর চালানো যাবে
     return jsonify({
         'ok': True,
         'invoice_no': '01',
@@ -269,7 +264,7 @@ def add_invoice_preview():
         'workers': [],
         'total': 0.0,
         'warn': '',
-        'message': 'ডাটাবেজ-ভিত্তিক Add Invoice প্রিভিউ — পুরনো লগিক aquí add করুন'
+        'message': 'ডাটাবেজ-ভিত্তিক Add Invoice প্রিভিউ — পুরনো লগিক এখানে যোগ করুন'
     })
 
 
@@ -337,19 +332,29 @@ def files():
     })
 
 
-# ---------------------------------------------------------------- স্ট্যাটিক ফ্রন্টএন্ড সার্ভ
+# ---------------------------------------------------------------- স্ট্যাটিক ফ্রন্টএন্ড সার্ভ (ফিক্সড)
 @app.route('/', methods=['GET'])
 def index():
-    return send_from_directory(app.static_folder, 'index.html')
+    """হোম পেজে গেলে workspace.html খোলবে।"""
+    return send_from_directory(app.static_folder, 'workspace.html')
+
+
+@app.route('/workspace', methods=['GET'])
+def workspace():
+    return send_from_directory(app.static_folder, 'workspace.html')
 
 
 @app.route('/<path:path>', methods=['GET'])
 def static_proxy(path):
-    # ছবি/সিএসএস/জেএস ফাইল সরাসরি.static ফোল্ডার থেকে দেবে
-    if path and os.path.exists(os.path.join(app.static_folder, path)):
+    """static ফোল্ডার থেকে HTML/JS/CSS ছবি ইত্যাদি সার্ভ করবে।"""
+    # নিরাপদ পথ যেন ফোল্ডার বের করতে না পারে
+    if '..' in path or path.startswith('/'):
+        abort(404)
+    full_path = os.path.join(app.static_folder, path)
+    if os.path.isfile(full_path):
         return send_from_directory(app.static_folder, path)
-    # SPA রাউটিং এখানে সমর্থন করা যেতে পারে
-    return send_from_directory(app.static_folder, 'index.html')
+    # যদি ফাইল না পাওয়ায়, 404 দিবে
+    abort(404)
 
 
 # ---------------------------------------------------------------- রান
