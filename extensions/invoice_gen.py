@@ -611,7 +611,7 @@ def make_pdf(data, out_path, kind="statement"):
     pdf.set_text_color(*NAVY)
     pdf.set_font("helvetica", "BI", 10)
     pdf.set_xy(LM + 4, ry)
-    pdf.cell(W - 6, boxh, "In words: (%s AED & FIFTY-FILLS)" % data["in_words"], align="L")
+    pdf.cell(W - 6, boxh, "In words: (%s AED ONLY)" % data["in_words"], align="L")
     ry += boxh
 
     # ---------------- thank you + signature box ----------------
