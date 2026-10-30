@@ -1584,28 +1584,27 @@ body[data-theme="paper"].themeFade::after{
 
 <div class="card" style="margin-top:14px">
 <h2>📄 ③ Add Invoice — আলাদা ইনভয়েস (কোম্পানির নামে)</h2>
-<div class="hint">কোম্পানি/সাইটের নাম → মাস বেছে নিন → সব প্রোভাইডারের লোক এক লিস্টে → লোক সিলেক্ট → রেট বসান → ঘণ্টা অটো (সেই মাসের ডাটা শিট) → প্রিভিউ → Unit Price-এ প্রতি লোকের আলাদা রেট → Save → invoice\ ফোল্ডারে PDF (নম্বর চেইন চলবে)।</div>
-<div class="bigadd">
-<div style="flex:2;min-width:200px"><label class="hint">কোম্পানি / সাইটের নাম</label><input id="addinv_client" placeholder="যেমন: SHOMLUJ MIAH"></div>
-<div style="flex:2;min-width:200px"><label class="hint">ঠিকানা</label><input id="addinv_addr" placeholder="যেমন: AJMAN, UAE"></div>
-<div style="flex:1;min-width:110px"><label class="hint">মাস</label><select id="addinv_month" onchange="addInvLoad()"></select></div>
-<div style="flex:0 0 auto;min-width:86px"><label class="hint">সাল</label><select id="addinv_year" onchange="addInvLoad()"></select></div>
-<div style="flex:0 0 auto;align-self:flex-end"><button class="ghost" onclick="addInvLoad()">🔄 লোড ওয়ার্কার</button></div>
-</div>
-<div class="bigadd" style="margin-top:6px">
-<div style="flex:1;min-width:180px"><label class="hint">লোক সিলেক্ট করুন (Ctrl চেপে একাধিক)</label><select id="addinv_worker" multiple size="5" style="height:auto"></select></div>
-<div style="flex:1;min-width:150px"><label class="hint">রেট (AED/hr)</label><input id="addinv_rate" type="number" step="0.25" placeholder="রেট বসান"></div>
-<div style="flex:0 0 auto;align-self:flex-end"><button class="ghost" onclick="addInvSetRate()">💰 সিলেক্ট লোকে রেট বসাও</button></div>
-</div>
-<div class="hint">💡 ঘণ্টা অটো আসবে সেই মাসের ডাটা শিট থেকে (মাস/সাল বদলালেই আবার লোড হবে)। প্রতি লোকের আলাদা রেট প্রিভিউ টেবিলের Unit Price ঘরে বদলান — সেভ হবে সেই রেটেই।</div>
+<div class="hint">বট ধাপে ধাপে প্রশ্ন করবে — আপনি শুধু উত্তর দেবেন। ঘণ্টা অটো আসবে সেই মাসের ডাটা শিট থেকে।</div>
+<!-- guided chat -->
+<div id="addinvChat" style="border:1px solid #1e3a5f;border-radius:12px;background:#0a1428;padding:10px 12px;margin:8px 0;max-height:420px;overflow-y:auto"></div>
+<div id="addinvStep" style="margin:8px 0"></div>
 <div class="status" id="addinvMsg"></div>
+<!-- hidden form fields that the existing engine functions read -->
+<div style="display:none">
+  <input id="addinv_client">
+  <input id="addinv_addr">
+  <select id="addinv_month"></select>
+  <select id="addinv_year"></select>
+  <select id="addinv_worker" multiple size="4"></select>
+  <input id="addinv_rate" type="number" step="0.25">
+</div>
 <div id="addinvPreviewWrap" style="display:none">
-<div style="margin:8px 0;text-align:right;display:flex;gap:8px;justify-content:flex-end">
+  <div style="margin:8px 0;text-align:right;display:flex;gap:8px;justify-content:flex-end">
     <button class="ghost" onclick="addInvSave()">💾 ফোল্ডারে PDF সেভ করুন</button>
     <button class="ghost" onclick="addInvPrint()">🖨️ প্রিন্ট / PDF</button>
-</div>
-<div id="addinvPaper"></div>
-</div>
+    <button class="ghost" onclick="addInvWizardReset()">🔄 নতুন ইনভয়েস</button>
+  </div>
+  <div id="addinvPaper"></div>
 </div>
 </div>
 <div id="ws4" style="display:none"><div class="card"><h2>📢 Notice/Task</h2><div class="hint">পরের ধাপে বানানো হবে — ডিউটি, ঘোষণা।</div></div></div>
@@ -2186,7 +2185,7 @@ document.addEventListener('DOMContentLoaded', () => {
     /* top bar / side */
     'সংরক্ষিত': 'Saved',
     /* ③ Add Invoice card */
-    '📄 ③ Add Invoice — আলাদা ইনভয়েস (কোম্পানির নামে)': '📄 ③ Add Invoice — separate invoice (on your company name)',
+    '📄 ③ Add Invoice — আলাদা ইনভয়েস (কোম্পানির নামে)': '📄 ③ Add Invoice — separate invoice (on your company name)',\n    'বট ধাপে ধাপে প্রশ্ন করবে — আপনি শুধু উত্তর দেবেন। ঘণ্টা অটো আসবে সেই মাসের ডাটা শিট থেকে।': 'The bot will ask step by step — you just answer. Hours load automatically from that month\\'s data sheet.',
     'কোম্পানি/সাইটের নাম → মাস বেছে নিন → সব প্রোভাইডারের লোক এক লিস্টে → লোক সিলেক্ট → রেট বসান → ঘণ্টা অটো (সেই মাসের ডাটা শিট) → প্রিভিউ → Unit Price-এ প্রতি লোকের আলাদা রেট → Save → invoice\\ ফোল্ডারে PDF (নম্বর চেইন চলবে)।': 'Company / site name → pick the month → all providers’ workers in one mixed list → select workers → set rate → hours auto (that month’s data sheet) → preview → per-worker rate in Unit Price → Save → PDF in the invoice\\ folder (numbering chain continues).',
     'কোম্পানি / সাইটের নাম': 'Company / site name',
     'ঠিকানা': 'Address',

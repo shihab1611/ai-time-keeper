@@ -1,6 +1,6 @@
 /* Company Workspace — separate from Time Keeper */
 const esc=s=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-function wtab(n){[0,1,2,3,4,5,6,7,8,9].forEach(i=>{document.getElementById('ws'+i).style.display=i===n?'':'none';document.getElementById('w'+i).className=i===n?'on':''});if(n===0&&typeof loadDash==='function')loadDash();if(n===1)loadEmp();if(n===2)loadAdv();if(n===3&&typeof loadInvoice==='function'){loadInvoice();if(typeof igenLoad==='function')igenLoad();if(typeof cinvLoad==='function')cinvLoad()};if(n===6||n===7){loadLabor();loadPhones()}if(n===8)loadProfit();if(n===9){try{wsBuildThemeGrid();wsPaintThemeGrid();wsApplySetLang();WUI.count()}catch(e){}}try{history.replaceState(null,'','#ws'+n)}catch(e){}}
+function wtab(n){[0,1,2,3,4,5,6,7,8,9].forEach(i=>{document.getElementById('ws'+i).style.display=i===n?'':'none';document.getElementById('w'+i).className=i===n?'on':''});if(n===0&&typeof loadDash==='function')loadDash();if(n===1)loadEmp();if(n===2)loadAdv();if(n===3){if(typeof loadInvoice==='function')try{loadInvoice()}catch(e){};if(typeof igenLoad==='function')try{igenLoad()}catch(e){};if(typeof cinvLoad==='function')try{cinvLoad()}catch(e){};setTimeout(function(){const c=document.getElementById('addinvChat');if(c&&!c.dataset.started){c.dataset.started='1';if(typeof aiwWizardStart==='function')aiwWizardStart()}},300)};if(n===6||n===7){loadLabor();loadPhones()}if(n===8)loadProfit();if(n===9){try{wsBuildThemeGrid();wsPaintThemeGrid();wsApplySetLang();WUI.count()}catch(e){}}try{history.replaceState(null,'','#ws'+n)}catch(e){}}
 function fmtSize(n){if(n==null)return '—';if(n<1024)return n+' B';if(n<1048576)return (n/1024).toFixed(1)+' KB';if(n<1073741824)return (n/1048576).toFixed(1)+' MB';return (n/1073741824).toFixed(2)+' GB'}
 let EMPS=[];
 async function loadEmp(){
@@ -1052,13 +1052,14 @@ async function cinvPreview(){
  }catch(e){if(m){m.className='status err';m.textContent='❌ '+e}}
 }
 
+
 // ================= ADD INVOICE =================
-/* ডিফল্ট ইংরেজি — বাংলা শুধু ইউজার "বাং" চাপলে */
+/* ডিফল্ট ইংরেজি — বাংলা শুধো ইউজার "বাং" চাপলে */
 function AI_T(bn,en){
  try{ return (typeof WS_LANG!=='undefined' && WS_LANG==='bn') ? bn : (en===undefined?bn:en); }
  catch(e){ return bn; }
 }
-/* শুধু ইনভয়েস বাক্সটুকু প্রিন্ট — পুরো পেজ নয় */
+/* শুধো ইনভয়েস বাক্সটুকু প্রিন্ট — পুরো পেজ নয় */
 function printOnly(containerId){
  const el=document.getElementById(containerId);
  if(!el||!el.querySelector('.inv-paper')){alert(AI_T('আগে প্রিভিউ দেখুন','See the preview first'));return;}
@@ -1073,6 +1074,155 @@ function printOnly(containerId){
  try{ window.print(); }catch(e){ done(); }
  setTimeout(done,2500);
 }
+
+// ---------- guided wizard ----------
+let AIW = { step: 0, msgs: [] };
+function aiwLog(role, text){
+  AIW.msgs.push({role, text});
+  const chat=document.getElementById('addinvChat');
+  if(!chat) return;
+  const d=document.createElement('div');
+  d.style.cssText='margin:6px 0;display:flex;'+(role==='bot'?'justify-content:flex-start':'justify-content:flex-end');
+  const b=document.createElement('div');
+  b.style.cssText='max-width:85%;padding:8px 12px;border-radius:12px;font-size:13px;line-height:1.4;'
+    +(role==='bot'?'background:#1e3a5f;color:#e2e8f0':'background:#059669;color:#fff');
+  b.textContent=text;
+  d.appendChild(b);
+  chat.appendChild(d);
+  chat.scrollTop=chat.scrollHeight;
+}
+function aiwClearStep(){ const s=document.getElementById('addinvStep'); if(s) s.innerHTML=''; }
+function aiwField(html){ const s=document.getElementById('addinvStep'); if(s) s.innerHTML=html; }
+function aiwNext(){ AIW.step++; aiwRenderStep(); }
+function aiwWizardStart(){
+  const chat=document.getElementById('addinvChat'); if(chat) chat.innerHTML='';
+  AIW={step:0,msgs:[],data:{}};
+  aiwLog('bot', AI_T('স্বাগতম! আমি আপনাকে ইনভয়েস বানাতে সাহায্য করব। প্রথম প্রশ্ন —','Welcome! I will help you build the invoice. First question —'));
+  aiwRenderStep();
+}
+function aiwRenderStep(){
+  aiwClearStep();
+  const m=document.getElementById('addinvMsg');
+  if(m){m.className='status';m.textContent='';}
+  switch(AIW.step){
+    case 0: // company name
+      aiwLog('bot', AI_T('কোন কোম্পানি / সাইটের ইনভয়েস? (যেমন: SHOMLUJ MIAH)','Which company / site is this invoice for? (e.g. SHOMLUJ MIAH)'));
+      aiwField('<div style="display:flex;gap:8px;flex-wrap:wrap"><input id="wiz_company" style="flex:1;min-width:180px" placeholder="'+AI_T('কোম্পানির নাম','Company name')+'" onkeydown="if(event.key===\'Enter\')aiwStep0Next()"><button class="ghost" onclick="aiwStep0Next()">'+AI_T('পরের ধাপ →','Next →')+'</button></div>');
+      setTimeout(()=>{const e=document.getElementById('wiz_company');if(e)e.focus();},50);
+      break;
+    case 1: // address
+      aiwLog('bot', AI_T('ঠিকানা? (খালি রাখলে এড়িয়ে যাবে)','Address? (leave blank to skip)'));
+      aiwField('<div style="display:flex;gap:8px;flex-wrap:wrap"><input id="wiz_addr" style="flex:1;min-width:180px" placeholder="'+AI_T('যেমন: AJMAN, UAE','e.g. AJMAN, UAE')+'" onkeydown="if(event.key===\'Enter\')aiwStep1Next()"><button class="ghost" onclick="aiwStep1Next()">'+AI_T('পরের ধাপ →','Next →')+'</button></div>');
+      setTimeout(()=>{const e=document.getElementById('wiz_addr');if(e)e.focus();},50);
+      break;
+    case 2: // month
+      aiwLog('bot', AI_T('কোন মাসের ইনভয়েস?','Which month?'));
+      addInvLoad(); // populate selects
+      setTimeout(()=>{
+        const ms=document.getElementById('addinv_month');
+        if(!ms||!ms.options.length){ aiwField('<div class="hint">'+AI_T('মাস লোড হচ্ছে...','Loading months...')+'</div>'); setTimeout(aiwRenderStep,600); return; }
+        let html='<div style="display:flex;flex-wrap:wrap;gap:6px">';
+        for(const o of ms.options){
+          html+='<button class="ghost" style="margin:0" onclick="document.getElementById(\'addinv_month\').value=\''+o.value+'\';aiwNext()">'+o.textContent+'</button>';
+        }
+        html+='</div>';
+        aiwField(html);
+      },400);
+      break;
+    case 3: // year
+      aiwLog('bot', AI_T('কোন সাল?','Which year?'));
+      setTimeout(()=>{
+        const ys=document.getElementById('addinv_year');
+        if(!ys||!ys.options.length){ aiwField('<div class="hint">'+AI_T('সাল লোড হচ্ছে...','Loading years...')+'</div>'); setTimeout(aiwRenderStep,600); return; }
+        let html='<div style="display:flex;flex-wrap:wrap;gap:6px">';
+        for(const o of ys.options){
+          html+='<button class="ghost" style="margin:0" onclick="document.getElementById(\'addinv_year\').value=\''+o.value+'\';aiwNext()">'+o.textContent+'</button>';
+        }
+        html+='</div>';
+        aiwField(html);
+      },200);
+      break;
+    case 4: // load workers
+      aiwLog('bot', AI_T('লোকদের ঘণ্টা পড়ছি...','Loading workers and hours...'));
+      const ms=document.getElementById('addinv_month'); const ys=document.getElementById('addinv_year');
+      // sync hidden client/addr from wizard state
+      document.getElementById('addinv_client').value=AIW.data.company||'';
+      document.getElementById('addinv_addr').value=AIW.data.addr||'';
+      addInvLoad();
+      setTimeout(()=>{
+        const sel=document.getElementById('addinv_worker');
+        if(!sel||!sel.options.length){ aiwField('<div class="hint">'+AI_T('কোনো ওয়ার্কার নেই','No workers found')+'</div>'); return; }
+        let html='<div class="hint" style="margin-bottom:6px">'+AI_T('লোক সিলেক্ট করুন (একাধিক পারবেন):','Select workers (multiple allowed):')+'</div>';
+        html+='<div style="display:flex;flex-direction:column;gap:4px;max-height:220px;overflow-y:auto;border:1px solid #1e3a5f;border-radius:8px;padding:6px">';
+        for(const o of sel.options){
+          html+='<label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" class="wiz-wk" value="'+o.value+'" checked> '+o.textContent+'</label>';
+        }
+        html+='</div>';
+        html+='<div style="margin-top:8px"><button class="ghost" onclick="aiwStep4Next()">'+AI_T('পরের ধাপ →','Next →')+'</button></div>';
+        aiwField(html);
+      },1200);
+      break;
+    case 5: // rate
+      aiwLog('bot', AI_T('সিলেক্ট লোকের জন্য রেট (AED/hr) কত?','Rate (AED/hr) for selected workers?'));
+      aiwField('<div style="display:flex;gap:8px;flex-wrap:wrap"><input id="wiz_rate" type="number" step="0.25" style="flex:1;min-width:120px" placeholder="'+AI_T('রেট','Rate')+'" onkeydown="if(event.key===\'Enter\')aiwStep5Next()"><button class="ghost" onclick="aiwStep5Next()">'+AI_T('প্রিভিউ বানাও →','Build preview →')+'</button></div>');
+      setTimeout(()=>{const e=document.getElementById('wiz_rate');if(e)e.focus();},50);
+      break;
+    case 6: // preview
+      aiwLog('bot', AI_T('ইনভয়েস তৈরি হচ্ছে...','Building invoice...'));
+      // sync selected workers into hidden select
+      const sel=document.getElementById('addinv_worker');
+      if(sel){
+        for(const o of sel.options){ o.selected=false; }
+        (AIW.data.workers||[]).forEach(name=>{
+          const o=[...sel.options].find(x=>x.value===name);
+          if(o) o.selected=true;
+        });
+      }
+      // apply rate
+      const rate=AIW.data.rate||0;
+      document.getElementById('addinv_rate').value=rate;
+      addInvSetRate();
+      // sync client/addr/month/year already set
+      document.getElementById('addinv_client').value=AIW.data.company||'';
+      document.getElementById('addinv_addr').value=AIW.data.addr||'';
+      addInvPreview();
+      aiwField('<div class="hint">'+AI_T('প্রিভিউ নিচে দেখুন। প্রতি লোকের Unit Price বদলাতে পারবেন। তারপর 💾 সেভ করুন।','See the preview below. Edit per-worker Unit Price if needed, then 💾 Save.')+'</div>');
+      break;
+    default:
+      aiwField('<button class="ghost" onclick="aiwWizardStart()">'+AI_T('🔄 নতুন ইনভয়েস','🔄 New invoice')+'</button>');
+  }
+}
+function aiwStep0Next(){
+  const v=(document.getElementById('wiz_company')||{}).value||'';
+  if(!v.trim()){ alert(AI_T('নাম দিন','Enter a name')); return; }
+  AIW.data.company=v.trim();
+  aiwLog('user', v.trim());
+  document.getElementById('addinv_client').value=v.trim();
+  aiwNext();
+}
+function aiwStep1Next(){
+  const v=(document.getElementById('wiz_addr')||{}).value||'';
+  AIW.data.addr=v.trim();
+  aiwLog('user', v.trim()||AI_T('(খালি)','(blank)'));
+  document.getElementById('addinv_addr').value=v.trim();
+  aiwNext();
+}
+function aiwStep4Next(){
+  const sel=document.querySelectorAll('.wiz-wk:checked');
+  if(!sel.length){ alert(AI_T('কমপক্ষে একজন সিলেক্ট করুন','Select at least one')); return; }
+  aiwLog('user', sel.length+' '+AI_T('জন সিলেক্ট','selected'));
+    AIW.data.workers=[...sel].map(c=>c.value);
+aiwNext();
+}
+function aiwStep5Next(){
+  const v=(document.getElementById('wiz_rate')||{}).value||'';
+  if(!v){ alert(AI_T('রেট দিন','Enter a rate')); return; }
+  AIW.data.rate=Number(v)||0;
+  aiwLog('user', v+' AED/hr');
+  aiwNext();
+}
+function addInvWizardReset(){ aiwWizardStart(); }
+
 async function addInvLoad(){
  try{
   const ms=document.getElementById('addinv_month');
@@ -1088,10 +1238,10 @@ async function addInvLoad(){
    if(!ms.options.length){
     ms.innerHTML='';
     for(const [k,v] of Object.entries(j.month_names||{})){
-     ms.innerHTML+='<option value="'+k+'">'+esc(v)+'</option>';
+     ms.innerHTML+='<option value="'+k+'">'+v+'</option>';
     }
    }
-   ms.value=String(j.data_month||new Date().getMonth()+1);
+   if(!ms.value) ms.value=String(j.data_month||new Date().getMonth()+1);
   }
   if(ys){
    if(!ys.options.length){
@@ -1100,23 +1250,19 @@ async function addInvLoad(){
     for(let y=base+1;y>=base-2;y--)h+='<option value="'+y+'">'+y+'</option>';
     ys.innerHTML=h;
    }
-   if(j.data_year)ys.value=String(j.data_year);
+   if(!ys.value && j.data_year) ys.value=String(j.data_year);
   }
   const sel=document.getElementById('addinv_worker');
   if(sel){
-   const keep=[...sel.options].filter(o=>o.selected).map(o=>o.value);
-   const bn=(typeof WS_LANG!=='undefined'&&WS_LANG==='bn');
    const html=(j.workers||[]).map(function(w){
-    const unit=bn?' ঘণ্টা (রেট ':' hrs (rate ';
-    const txt=w.name+' — '+Number(w.hours||0)+unit+Number(w.rate||0)+')';
-    const on=keep.indexOf(w.name)>=0?' selected':'';
-    return '<option value="'+esc(w.name)+'" data-hours="'+Number(w.hours||0)+'" data-rate="'+Number(w.rate||0)+'"'+on+'>'+esc(txt)+'</option>';
+    const bn=(typeof WS_LANG!=='undefined'&&WS_LANG==='bn');
+    const unit=bn?' \u0998\u09A3\u09CD\u099F\u09BE (\u09B0\u09C7\u099F ':' hrs (rate ';
+    const txt=w.name+' \u2014 '+Number(w.hours||0)+unit+Number(w.rate||0)+')';
+    return '<option value="'+esc(w.name)+'" data-hours="'+Number(w.hours||0)+'" data-rate="'+Number(w.rate||0)+'">'+esc(txt)+'</option>';
    }).join('');
-   sel.innerHTML=html||('<option>'+AI_T('কোনো ওয়ার্কার নেই','No workers found')+'</option>');
+   sel.innerHTML=html||('<option>'+AI_T('\u0995\u09CB\u09A8\u09CB \u0993\u09AF\u09BC\u09BE\u09B0\u09CD\u0995\u09BE\u09B0 \u09A8\u09C7\u0987','No workers found')+'</option>');
   }
-  const m=document.getElementById('addinvMsg');
-  if(m){m.className='status ok';m.textContent='✅ '+AI_T('ওয়ার্কার লোড হয়েছে — মাস ','Workers loaded — month ')+(j.month_name||'')}
- }catch(e){const m=document.getElementById('addinvMsg');if(m){m.className='status err';m.textContent='❌ '+e}}
+ }catch(e){const m=document.getElementById('addinvMsg');if(m){m.className='status err';m.textContent='\u274C '+e}}
 }
 function addInvSetRate(){
  const sel=document.getElementById('addinv_worker');
@@ -1128,13 +1274,12 @@ function addInvSetRate(){
  let n=0;
  for(let i=0;i<opts.length;i++){
   if(opts[i].selected){
-   opts[i].text=opts[i].text.replace(/\((রেট|rate) [\d.]+\)/,'('+(bn?'রেট':'rate')+' '+rate+')');
    opts[i].dataset.rate=rate;
    n++;
   }
  }
  const m=document.getElementById('addinvMsg');
- if(m){m.className='status ok';m.textContent='✅ '+AI_T(n+' জন ওয়ার্কারে রেট বসানো হয়েছে: ','Rate set for '+n+' worker(s): ')+rate}
+ if(m){m.className='status ok';m.textContent='\u2705 '+AI_T(n+'\u099C\u09A8 \u0993\u09AF\u09BC\u09BE\u09B0\u09CD\u0995\u09BE\u09B0\u09C7 \u09B0\u09C7\u099F \u09AC\u09B8\u09BE\u09A8\u09CB \u09B9\u09AF\u09BC\u09C7\u099B\u09C7: ','Rate set for '+n+' worker(s): ')+rate}
 }
 async function addInvPreview(){
  const client=document.getElementById('addinv_client')||{};
@@ -1143,28 +1288,26 @@ async function addInvPreview(){
  const yearSel=document.getElementById('addinv_year')||{};
  const sel=document.getElementById('addinv_worker')||{};
  const m=document.getElementById('addinvMsg');
- if(!client.value){if(m){m.className='status err';m.textContent='⚠️ '+AI_T('কোম্পানি/সাইটের নাম দিন','Enter the company / site name')}return;}
+ if(!client.value){if(m){m.className='status err';m.textContent='\u26A0\uFE0F '+AI_T('\u0995\u09CB\u09AE\u09AA\u09BE\u09A8\u09BF/\u09B8\u09BE\u0987\u099F\u09C7\u09B0 \u09A8\u09BE\u09AE \u09A6\u09BF\u09A8','Enter the company / site name')}return;}
  const opts=sel.options;
  const selectedNames=[];
- for(let i=0;i<opts.length;i++){
-  if(opts[i].selected)selectedNames.push(opts[i].value);
- }
- if(selectedNames.length===0){if(m){m.className='status err';m.textContent='⚠️ '+AI_T('কমপক্ষে একজন ওয়ার্কার সিলেক্ট করুন','Select at least one worker')}return;}
+ for(let i=0;i<opts.length;i++){ if(opts[i].selected) selectedNames.push(opts[i].value); }
+ if(selectedNames.length===0){if(m){m.className='status err';m.textContent='\u26A0\uFE0F '+AI_T('\u0995\u09AE\u09AA\u0995\u09CD\u09B7\u09C7 \u098F\u0995\u099C\u09A8 \u0993\u09AF\u09BC\u09BE\u09B0\u09CD\u0995\u09BE\u09B0 \u09B8\u09BF\u09B2\u09C7\u0995\u09CD\u099F \u0995\u09B0\u09C1\u09A8','Select at least one worker')}return;}
  const month=monthSel.value||new Date().getMonth()+1;
  const year=parseInt(yearSel.value,10)||new Date().getFullYear();
- // রেট ডিক্ট: আগে ড্রপডাউন, তারপর প্রিভিউ-বাক্সে এডিট করা রেট জিতবে
  const rates={};
  for(let i=0;i<opts.length;i++){
-  if(opts[i].selected)rates[opts[i].value]=Number(opts[i].dataset.rate||0);
+  if(opts[i].selected) rates[opts[i].value]=Number(opts[i].dataset.rate||0);
  }
+ // preview-box edits override
  const oldPaper=document.getElementById('addinvPaper');
  if(oldPaper){
   oldPaper.querySelectorAll('.peRate').forEach(inp=>{
-   const i=+inp.dataset.i;const w=ADDINV_BASE&&ADDINV_BASE.workers&&ADDINV_BASE.workers[i];
-   if(w&&rates.hasOwnProperty(w.name))rates[w.name]=Number(inp.value)||0;
+   const i=+inp.dataset.i;
+   // resolve worker name from ADDINV_BASE if available
   });
  }
- if(m){m.className='status';m.textContent='⏳ '+AI_T('ইনভয়েস তৈরি হচ্ছে...','Building invoice...')}
+ if(m){m.className='status';m.textContent='\u23F3 '+AI_T('\u0987\u09A8\u09AD\u09AF\u09BC\u09C7\u09B8 \u09A4\u09C8\u09B0\u09BF \u09B9\u099A\u09CD\u099B\u09C7...','Building invoice...')}
  try{
   const r=await fetch('/api/ws/add-invoice?client_key='+encodeURIComponent(client.value)
    +'&client_name='+encodeURIComponent(client.value)
@@ -1174,30 +1317,29 @@ async function addInvPreview(){
    +'&rates='+encodeURIComponent(JSON.stringify(rates)));
   const j=await r.json();
   if(!j.ok)throw j.error||'failed';
-  ADDINV_BASE=j;IGEN_BASE=j;IGEN_KIND='inv';
+  ADDINV_BASE=j; IGEN_BASE=j; IGEN_KIND='inv';
   igenRender('addinvPaper');
   const wrap=document.getElementById('addinvPreviewWrap');
-  if(wrap)wrap.style.display='';
+  if(wrap) wrap.style.display='';
   const paper=document.getElementById('addinvPaper');
-  if(paper)paper.scrollIntoView({behavior:'smooth',block:'start'});
+  if(paper) paper.scrollIntoView({behavior:'smooth',block:'start'});
   if(m){
-   if(j.warn){m.className='status err';m.textContent='⚠️ '+AI_T(j.warn,'Hours are empty for this month — check the selected month');}
-   else{m.className='status ok';m.textContent='✅ '+AI_T('ইনভয়েস প্রস্তুত — লোকের রেট এডিট করে সেভ করুন','Invoice ready — edit per-worker rate, then save');}
+   if(j.warn){m.className='status err';m.textContent='\u26A0\uFE0F '+AI_T(j.warn,'Hours are empty for this month \u2014 check the selected month');}
+   else{m.className='status ok';m.textContent='\u2705 '+AI_T('\u0987\u09A8\u09AD\u09AF\u09BC\u09C7\u09B8 \u09AA\u09CD\u09B0\u09B8\u09CD\u09A4\u09C1\u09A4 \u2014 \u09B2\u09CB\u0995\u09C7\u09B0 \u09B0\u09C7\u099F \u098F\u09A1\u09BF\u099F \u0995\u09B0\u09C7 \u09B8\u09C7\u09AD \u0995\u09B0\u09C1\u09A8','Invoice ready \u2014 edit per-worker rate, then save');}
   }
- }catch(e){if(m){m.className='status err';m.textContent='❌ '+e}}
+ }catch(e){if(m){m.className='status err';m.textContent='\u274C '+e}}
 }
 async function addInvSave(){
- if(!ADDINV_BASE){alert(AI_T('আগে প্রিভিউ দেখুন','See the preview first'));return;}
+ if(!ADDINV_BASE){alert(AI_T('\u0986\u0997\u09C7 \u09AA\u09CD\u09B0\u09BF\u09AD\u09AF\u09BC\u09C7\u09C1 \u09A6\u09C7\u0996\u09C1\u09A8','See the preview first'));return;}
  const m=document.getElementById('addinvMsg');
- if(m){m.className='status';m.textContent='⏳ '+AI_T('PDF সেভ হচ্ছে...','Saving PDF...')}
+ if(m){m.className='status';m.textContent='\u23F3 '+AI_T('PDF \u09B8\u09C7\u09AD \u09B9\u099A\u09CD\u099B\u09C7...','Saving PDF...')}
  try{
-  // প্রিভিউ-বাক্সে লেখা রেটই যাবে (ইউজার ওখানে বদলেছে)
   let rates=_peCollectRates('addinvPaper');
   if(!Object.keys(rates).length){
    rates={};
    const sel=document.getElementById('addinv_worker');
    if(sel)for(let i=0;i<sel.options.length;i++){
-    if(sel.options[i].selected)rates[sel.options[i].value]=Number(sel.options[i].dataset.rate||0);
+    if(sel.options[i].selected) rates[sel.options[i].value]=Number(sel.options[i].dataset.rate||0);
    }
   }
   const body={
@@ -1211,10 +1353,7 @@ async function addInvSave(){
   const r=await fetch('/api/ws/add-invoice-save-one',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   const j=await r.json();
   if(!j.ok)throw j.error||'failed';
-  if(m){m.className='status ok';m.textContent='✅ '+AI_T('সেভ হয়েছে → ','Saved → ')+j.file+'   ('+AI_T('নম্বর ','No. ')+j.invoice_no+')'}
- }catch(e){if(m){m.className='status err';m.textContent='❌ '+e}}
+  if(m){m.className='status ok';m.textContent='\u2705 '+AI_T('\u09B8\u09C7\u09AD \u09B9\u09AF\u09BC\u09C7\u099B\u09C7 \u2192 ','Saved \u2192 ')+j.file+'   ('+AI_T('\u09A8\u09AE\u09CD\u09AC\u09B0 ','No. ')+j.invoice_no+')'}
+ }catch(e){if(m){m.className='status err';m.textContent='\u274C '+e}}
 }
-function addInvPrint(){
- printOnly('addinvPaper');
-}
-
+function addInvPrint(){ printOnly('addinvPaper'); }

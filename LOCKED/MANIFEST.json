@@ -1,5 +1,5 @@
 {
-  "locked_at": "2026-10-30 17:57:35",
+  "locked_at": "2026-10-30 18:13:44",
   "base": "D:\\ai manager",
   "files": {
     "app.py": {
@@ -31,8 +31,8 @@
       "size": 304617
     },
     "workspace.html": {
-      "sha256": "485c352260e2302dd78ce198d2ce61a60e22f52fadf0ba9ba4a7e89fb9918d29",
-      "size": 182357
+      "sha256": "547e47dab4d7b30ea656df6c775c7c2bb62aa88956ae0a23556badd988226291",
+      "size": 181268
     },
     "login.html": {
       "sha256": "aac9499a2121e23129073a4175ef0155d2be9ccc28be45443183a506731b8b53",
@@ -51,8 +51,8 @@
       "size": 29259
     },
     "workspace.js": {
-      "sha256": "d449319171c48c5cc17bc43cce6baf7957b8ab5aa801aa4dc506efc1c8b59498",
-      "size": 71018
+      "sha256": "d6cb34c237dab0dc5c69432d1d472d84e5ca91490280636e5d6c26261b6bf380",
+      "size": 80259
     },
     "provider_config.json": {
       "sha256": "96a8d210d900fec56a4865ab388d32a86b199fbcee25f59778946ca9f109cceb",
