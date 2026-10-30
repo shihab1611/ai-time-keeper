@@ -102,7 +102,7 @@ with app.app_context():
 
 
 # ---------------------------------------------------------------- Auth রুট
-@app.route('/api/auth/register', methods=['POST'])
+@app.route('/api/auth/register', methods=['POST'], strict_slashes=False)
 def register():
     d = request.get_json() or {}
     email = (d.get('email') or '').strip().lower()
@@ -124,7 +124,7 @@ def register():
     })
 
 
-@app.route('/api/auth/login', methods=['POST'])
+@app.route('/api/auth/login', methods=['POST'], strict_slashes=False)
 def login():
     d = request.get_json() or {}
     email = (d.get('email') or '').strip().lower()
@@ -139,14 +139,14 @@ def login():
     return jsonify({'ok': False, 'error': 'ভুল আইডি বা পাসওয়ার্ড'}), 401
 
 
-@app.route('/api/auth/logout', methods=['POST'])
+@app.route('/api/auth/logout', methods=['POST'], strict_slashes=False)
 @login_required
 def logout():
     logout_user()
     return jsonify({'ok': True})
 
 
-@app.route('/api/auth/me', methods=['GET'])
+@app.route('/api/auth/me', methods=['GET'], strict_slashes=False)
 def me():
     if current_user.is_authenticated:
         return jsonify({
@@ -162,7 +162,7 @@ def me():
 
 
 # ---------------------------------------------------------------- মাস লিস্ট
-@app.route('/api/months', methods=['GET'])
+@app.route('/api/months', methods=['GET'], strict_slashes=False)
 @login_required
 def months():
     sheets = (DataSheet.query
@@ -183,7 +183,7 @@ def months():
 
 
 # ---------------------------------------------------------------- লেবার / ওয়ার্কার
-@app.route('/api/ws/labor', methods=['GET'])
+@app.route('/api/ws/labor', methods=['GET'], strict_slashes=False)
 @login_required
 def labor():
     assigns = LaborAssign.query.filter_by(user_id=current_user.id).all()
@@ -200,7 +200,7 @@ def labor():
     ]})
 
 
-@app.route('/api/ws/labor-assign', methods=['POST'])
+@app.route('/api/ws/labor-assign', methods=['POST'], strict_slashes=False)
 @login_required
 def labor_assign_save():
     d = request.get_json() or {}
@@ -221,7 +221,7 @@ def labor_assign_save():
 
 
 # ---------------------------------------------------------------- ইনভয়েস প্রিভিউ (① Statement)
-@app.route('/api/ws/invoice-gen', methods=['GET'])
+@app.route('/api/ws/invoice-gen', methods=['GET'], strict_slashes=False)
 @login_required
 def invoice_gen():
     prov = request.args.get('prov', '')
@@ -241,7 +241,7 @@ def invoice_gen():
 
 
 # ---------------------------------------------------------------- ③ Add Invoice প্রিভিউ
-@app.route('/api/ws/add-invoice', methods=['GET'])
+@app.route('/api/ws/add-invoice', methods=['GET'], strict_slashes=False)
 @login_required
 def add_invoice_preview():
     client_key = (request.args.get('client_key') or '').strip()
@@ -269,7 +269,7 @@ def add_invoice_preview():
 
 
 # ---------------------------------------------------------------- ③ Add Invoice সেভ
-@app.route('/api/ws/add-invoice-save-one', methods=['POST'])
+@app.route('/api/ws/add-invoice-save-one', methods=['POST'], strict_slashes=False)
 @login_required
 def add_invoice_save():
     d = request.get_json() or {}
@@ -316,7 +316,7 @@ def add_invoice_save():
 
 
 # ---------------------------------------------------------------- ফাইল লিস্ট (ক্লাউডে ডাটাবেজ থেকে)
-@app.route('/api/files', methods=['GET'])
+@app.route('/api/files', methods=['GET'], strict_slashes=False)
 @login_required
 def files():
     sheets = DataSheet.query.filter_by(user_id=current_user.id).all()
@@ -346,14 +346,24 @@ def workspace():
 
 @app.route('/<path:path>', methods=['GET'])
 def static_proxy(path):
-    """static ফোল্ডার থেকে HTML/JS/CSS ছবি ইত্যাদি সার্ভ করবে।"""
-    # নিরাপদ পথ যেন ফোল্ডার বের করতে না পারে
+    """
+    static ফোল্ডার থেকে HTML/JS/CSS ছবি ইত্যাদি সার্ভ করবে।
+    কিন্তু /api/ পাথে যদি কোনো রুট না মেলে, HTML বদলে JSON 404 রিটার্ন করবে
+    যাতে ফ্রন্টএন্ডে JSON 파라্স এরর না হয়।
+    """
+    # API পাথে অনির্ধারিত রুটের場合ে JSON এρ্রor দিন, HTML নয়
+    if path.startswith('api/') or path == 'api':
+        return jsonify({'ok': False, 'error': 'API endpoint not found'}), 404
+
+    # ডিরেক্টরি ট্রাভার্সাল রোধ
     if '..' in path or path.startswith('/'):
         abort(404)
+
     full_path = os.path.join(app.static_folder, path)
     if os.path.isfile(full_path):
         return send_from_directory(app.static_folder, path)
-    # যদি ফাইল না পাওয়ায়, 404 দিবে
+
+    # ফাইল না পাওয়ায় 404
     abort(404)
 
 
