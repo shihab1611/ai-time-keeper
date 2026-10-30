@@ -2995,14 +2995,18 @@ async function loadMonths(){
    if(!j.months.length){box.innerHTML='<div class="hint">এখনো কোনো মাস সেভ হয়নি। প্রথম মাস ক্লিয়ার করলে এখানে <code>SEP-2026</code> ফোল্ডার দেখাবে।</div>';return}
    let h='';
    j.months.slice().reverse().forEach(m=>{
-    const xl=m.files.filter(f=>f.xlsx).length;
-    h+='<div style="border:1px solid #1e3a5f;border-radius:12px;padding:10px 12px;margin:8px 0;background:#0a1428">'
-     +'<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">'
-     +'<b style="color:#7dd3fc">📁 '+m.folder+'</b>'
-     +'<span style="color:#94a3b8;font-size:12px">'+xl+' টি শিট · '+(m.size/1024).toFixed(0)+' KB</span></div>';
-    m.files.forEach(f=>{
-     h+='<div style="font-size:12px;color:#cbd5e1;padding:2px 0 2px 10px">'
-      +(f.xlsx?'📄':'🗒️')+' '+f.name+'</div>'});
+     const xl=m.files.filter(f=>f.xlsx).length;
+     const isDir=f=>!f.xlsx&&(/statements|invoice|data sheet/i.test(f.name));
+     const dirs=m.files.filter(isDir).length;
+     const summary = xl>0 ? xl+'টি শিট · '+(m.size/1024).toFixed(0)+' KB'
+                          : (dirs>0 ? '📁 '+dirs+'টি ফোল্ডার (শিট ও PDF ভেতরে)' : 'কোনোঘু শিট নেই');
+     h+='<div style="border:1px solid #1e3a5f;border-radius:12px;padding:10px 12px;margin:8px 0;background:#0a1428">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">'
+      +'<b style="color:#7dd3fc">📁 '+m.folder+'</b>'
+      +'<span style="color:#94a3b8;font-size:12px">'+summary+'</span></div>';
+     m.files.forEach(f=>{
+      h+='<div style="font-size:12px;color:#cbd5e1;padding:2px 0 2px 10px">'
+       +(f.xlsx?'📄':(isDir(f)?'📁':'🗒️'))+' '+f.name+'</div>'});
     h+='<div style="font-size:11px;color:#64748b;margin-top:6px">'+m.folder+' \\ — '+m.files.length+' টি ফাইল সেভ করা আছে</div></div>';
    });
    box.innerHTML=h;

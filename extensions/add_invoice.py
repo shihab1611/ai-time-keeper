@@ -54,8 +54,10 @@ def _inv_dir(month, year):
     return d
 
 
-def _next_inv_no(cfg, client_key, month, year):
-    """ইনভয়েস নম্বর ধারাবাহিক চেইন — আলাদা ধারা (সেভ করা হয়, নইলে নম্বর থাকে না)।"""
+def _next_inv_no(cfg, client_key, month, year, persist=False):
+    """ইনভয়েস নম্বর ধারাবাহিক চেইন — আলাদা ধারা।
+    persist=False হলে শুধু পরের নম্বর দেখায় (চেইনে লিখে না) — প্রিভিউ ফাইল বাড়ায় না।
+    persist=True হলে সেভের সময় চেইনে স্থায়ী করে।"""
     settings = cfg.setdefault("settings", {})
     assigned = settings.get("assigned", {}) if isinstance(settings.get("assigned"), dict) else {}
     skey = "%s|%s|%s" % (client_key, month, year)
@@ -66,10 +68,11 @@ def _next_inv_no(cfg, client_key, month, year):
         inv_no = int(settings.get("invoice_start_no", 1))
         if inv_no > 1000:
             inv_no = 1
-        assigned[skey] = inv_no
-        settings["assigned"] = assigned
-        settings["invoice_start_no"] = inv_no + 1
-        changed = True
+        if persist:
+            assigned[skey] = inv_no
+            settings["assigned"] = assigned
+            settings["invoice_start_no"] = inv_no + 1
+            changed = True
     if changed:
         try:
             save_cfg(cfg)          # নম্বর চেইন স্থায়ী রাখতে — নইলে প্রতিবার 01
@@ -110,7 +113,7 @@ def _all_workers(month, year):
 
 # ---------------------------------------------------------------- builder
 def build_add_invoice(client_key, client_name, client_address, month=None, year=None,
-                      rates=None):
+                      rates=None, persist_no=False):
     """rates: {worker_name: rate} — ব্যবহারকারীর দিয়া রেট।"""
     cfg = load_cfg()
     settings = cfg.get("settings", {})
@@ -131,7 +134,7 @@ def build_add_invoice(client_key, client_name, client_address, month=None, year=
     now = time.localtime()
     date_s = "%02d %s %d" % (now.tm_mday, MONTHS.get(now.tm_mon, ""), now.tm_year)
 
-    inv_no = _next_inv_no(cfg, client_key, m, y)
+    inv_no = _next_inv_no(cfg, client_key, m, y, persist=persist_no)
 
     all_workers = _all_workers(m, y)
 
@@ -185,7 +188,8 @@ def build_add_invoice(client_key, client_name, client_address, month=None, year=
 
 
 def save_add_invoice_pdf(client_key, client_name, client_address, month, year, rates):
-    data = build_add_invoice(client_key, client_name, client_address, month, year, rates)
+    data = build_add_invoice(client_key, client_name, client_address, month, year, rates,
+                             persist_no=True)   # শুধু সেভেই নম্বর চেইনে স্থায়ী হয়
     # মাসের নাম থেকে সংখ্যা খুঁজে বের করা
     mnum = [k for k, v in MONTHS.items() if v == data["month_name"]]
     out_dir = _inv_dir(mnum[0] if mnum else 1, data["year"])

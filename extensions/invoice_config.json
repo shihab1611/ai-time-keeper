@@ -1,6 +1,6 @@
 {
   "settings": {
-    "invoice_start_no": 7,
+    "invoice_start_no": 6,
     "advance_source": "balance",
     "currency": "AED",
     "assigned": {
@@ -8,8 +8,7 @@
       "mr.jalil|9|2026": 2,
       "mr.abzol|9|2026": 3,
       "mr.somuj|9|2026": 4,
-      "mr.nur|10|2026": 5,
-      "mr.jalil|10|2026": 6
+      "mr.nur|10|2026": 5
     },
     "payto_client": "SHOMLUJ MIAH",
     "payto_address": "AJMAN, UAE"
