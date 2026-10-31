@@ -1,6 +1,6 @@
 /* Company Workspace — separate from Time Keeper */
 const esc=s=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-function wtab(n){[0,1,2,3,4,5,6,7,8,9].forEach(i=>{document.getElementById('ws'+i).style.display=i===n?'':'none';document.getElementById('w'+i).className=i===n?'on':''});if(n===0&&typeof loadDash==='function')loadDash();if(n===1)loadEmp();if(n===2)loadAdv();if(n===3){if(typeof loadInvoice==='function')try{loadInvoice()}catch(e){};if(typeof igenLoad==='function')try{igenLoad()}catch(e){};if(typeof cinvLoad==='function')try{cinvLoad()}catch(e){};setTimeout(function(){const c=document.getElementById('addinvChat');if(c&&!c.dataset.started){c.dataset.started='1';if(typeof aiwWizardStart==='function')aiwWizardStart()}},300)};if(n===6||n===7){loadLabor();loadPhones()}if(n===8)loadProfit();if(n===9){try{wsBuildThemeGrid();wsPaintThemeGrid();wsApplySetLang();WUI.count()}catch(e){}loadStorage()}try{history.replaceState(null,'','#ws'+n)}catch(e){}}
+function wtab(n){[0,1,2,3,4,5,6,7,8,9].forEach(i=>{document.getElementById('ws'+i).style.display=i===n?'':'none';document.getElementById('w'+i).className=i===n?'on':''});if(n===0&&typeof loadDash==='function')loadDash();if(n===0&&typeof loadCharts==='function')loadCharts();if(n===1)loadEmp();if(n===2)loadAdv();if(n===3){if(typeof loadInvoice==='function')try{loadInvoice()}catch(e){};if(typeof igenLoad==='function')try{igenLoad()}catch(e){};if(typeof cinvLoad==='function')try{cinvLoad()}catch(e){};setTimeout(function(){const c=document.getElementById('addinvChat');if(c&&!c.dataset.started){c.dataset.started='1';if(typeof aiwWizardStart==='function')aiwWizardStart()}},300)};if(n===6||n===7){loadLabor();loadPhones()}if(n===8)loadProfit();if(n===9){try{wsBuildThemeGrid();wsPaintThemeGrid();wsApplySetLang();WUI.count()}catch(e){}loadStorage()}try{history.replaceState(null,'','#ws'+n)}catch(e){}}
 function fmtSize(n){if(n==null)return '—';if(n<1024)return n+' B';if(n<1048576)return (n/1024).toFixed(1)+' KB';if(n<1073741824)return (n/1048576).toFixed(1)+' MB';return (n/1073741824).toFixed(2)+' GB'}
 let EMPS=[];
 async function loadEmp(){
@@ -689,6 +689,31 @@ async function advImport(inp){
  }catch(e){box.innerHTML='<div class="hint" style="color:#fca5a5">❌ '+esc(e)+'</div>'}
 }
 function advExport(){location.href='/api/ws/advance-export';}
+/* ---- ড্যাশবোর্ড লাইভ চার্ট (Chart.js) — লেবার-ঘণ্টা আর অগ্রিমের হিসাব ---- */
+let _ch1=null,_ch2=null;
+async function loadCharts(){
+ try{
+  const rs=await Promise.all([fetch('/api/ws/profit').then(r=>r.json()),fetch('/api/ws/advance').then(r=>r.json())]);
+  const pr=rs[0]||{},ad=rs[1]||{};
+  if(typeof Chart==='undefined')return;
+  Chart.defaults.color='#cfc6f5';
+  Chart.defaults.borderColor='rgba(255,255,255,.08)';
+  // ১. প্রোভাইডার-ভিত্তিক ঘণ্টা (বার)
+  const byP={};
+  (pr.workers||[]).forEach(w=>{const p=(w.provider||'—').replace('Refarenc of','').replace(/[()]/g,'').trim();byP[p]=(byP[p]||0)+(w.hours||0)});
+  const labels=Object.keys(byP),vals=labels.map(k=>Math.round(byP[k]*10)/10);
+  const c1=document.getElementById('chHours');
+  if(c1){if(_ch1)_ch1.destroy();_ch1=new Chart(c1,{type:'bar',
+   data:{labels:labels,datasets:[{label:'ঘণ্টা',data:vals,backgroundColor:'#22d3ee',borderRadius:6}]},
+   options:{plugins:{legend:{display:false}},scales:{y:{beginAtZero:true}}}})}
+  // ২. অগ্রিম: পরিশোধিত বনাম বাকি (ডোনাট)
+  let paid=0,bal=0;(ad.people||[]).forEach(p=>{paid+=p.paid||0;bal+=p.balance||0});
+  const c2=document.getElementById('chAdv');
+  if(c2){if(_ch2)_ch2.destroy();_ch2=new Chart(c2,{type:'doughnut',
+   data:{labels:['পরিশোধিত','বাকি'],datasets:[{data:[Math.round(paid*100)/100,Math.round(bal*100)/100],backgroundColor:['#4ade80','#f87171'],borderWidth:0}]},
+   options:{cutout:'62%',plugins:{legend:{position:'bottom'}}}})}
+ }catch(e){}
+}
 async function loadStorage(){
  try{
   const r=await fetch('/api/storage');const j=await r.json();

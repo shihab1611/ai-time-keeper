@@ -3,6 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#4c1d95">
+<meta name="description" content="AI Time Keeper — কোম্পানির লেবার-হিসাব ক্লাউডে">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icons/icon-192.png">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <title>Company Workspace</title>
 <script>
 /* লগইন-গেট: লগইন না থাকলে পাতা আঁকার আগেই লক-স্ক্রিনে পাঠাও */
@@ -1378,6 +1383,11 @@ body[data-theme="paper"].themeFade::after{
 <div class="hero" id="dashHero"><div class="k">📊 কোম্পানির অবস্থা</div><div class="big">…</div><div class="sub2">হিসাব লোড হচ্ছে…</div></div>
 <div class="tiles" id="dashTiles"></div>
 <div class="card"><h2>⏳ বকেয়া ও ডিউ</h2><div class="dues" id="dashDues"><div class="hint">লোড হচ্ছে…</div></div></div>
+<div class="card"><h2>📊 মাসের হিসাব — লাইভ চার্ট <span class="badge" style="background:rgba(34,211,238,.2);border-color:rgba(34,211,238,.5)">⚡ Chart.js</span></h2>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:center">
+ <div><canvas id="chHours" height="170" aria-label="প্রোভাইডার-ভিত্তিক ঘণ্টা"></canvas><div class="hint" style="text-align:center">প্রোভাইডার-ভিত্তিক ঘণ্টা</div></div>
+ <div><canvas id="chAdv" height="170" aria-label="অগ্রিম পরিশোধ"></canvas><div class="hint" style="text-align:center">অগ্রিম: পরিশোধিত বনাম বাকি</div></div>
+</div></div>
 <div class="card" id="cycCard"><h2>🔄 মাসিক চক্র — টিমলাইন</h2><div class="hint">সাইটের টাইমশিট → আপনার চেক → ক্লিয়ার → প্রোভাইডারের ইনভোয়়েস → ডাকা সাইট M+1-15 → বিল M+2-15। টাক ক্লিক চাপে।</div><div id="cycBox"><div class="hint">লোড হচ্ছে।</div></div></div><div class="card"><h2>⚡ দ্রুত কাজ</h2>
 <div style="display:flex;gap:8px;flex-wrap:wrap">
 <button class="ghost" onclick="showUnifiedAdd('search')">🔍 লোক খুঁজুন</button>
@@ -1677,6 +1687,15 @@ body[data-theme="paper"].themeFade::after{
 <script src="/unified_add.js"></script>
 <script src="/profit.js"></script>
 <script src="/dash.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.6.1/dist/chart.umd.min.js"></script>
+<script>
+/* PWA — service worker রেজিস্ট্রেশন (শুধু শেল ক্যাশ হয়, ডেটা সবসময় লাইভ) */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('/sw.js').catch(function () {});
+  });
+}
+</script>
 <script>
 /* ============================================================================
    WORKSPACE LANGUAGE — বাংলা / English
