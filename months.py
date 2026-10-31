@@ -202,7 +202,9 @@ def month_clear(data_path, tmpl_path, month, year, do_generate=True,
                 if f.read(2) != b"PK":
                     raise IOError("মোট শিট ঠিকমতো তৈরি হয়নি")
             # keep a copy in output\\ too, so the normal download list still works
-            _copy(tmp_out, os.path.join(BASE, "output", total_name))
+            out_dir = os.path.join(BASE, "output")
+            os.makedirs(out_dir, exist_ok=True)   # ক্লাউডে (Render) ফোল্ডারটা শুরুতেই থাকে না
+            _copy(tmp_out, os.path.join(out_dir, total_name))
         except Exception:
             if os.path.isfile(tmp_out):
                 try:
