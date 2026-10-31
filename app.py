@@ -43,6 +43,9 @@ if db_uri and db_uri.startswith("postgres://"):
 
 app.config['SQLALCHEMY_DATABASE_URI'] = db_uri
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+# Neon-এর মতো ম্যানেজড Postgres-এ কম্পিউট ঘুমিয়ে গেলে পুরনো কানেকশন কাটা পড়ে —
+# pool_pre_ping প্রতি ব্যবহারের আগে কানেকশন যাচাই করে, মৃত কানেকশনের 500 আর হয় না
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {'pool_pre_ping': True}
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024
 
 db = SQLAlchemy(app)
