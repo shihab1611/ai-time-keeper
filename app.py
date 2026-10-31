@@ -1763,6 +1763,19 @@ def backup_download():
                     for e in adv_rows]
         z.writestr('advance_entries.json', json.dumps(adv_meta, ensure_ascii=False, indent=1))
         counts['advance'] = len(adv_meta)
+
+        # ৪.৫ লেবার/ডিউটি খাতা
+        lab_meta = []
+        for e in LaborDuty.query.filter_by(user_id=current_user.id).all():
+            try:
+                hist = json.loads(e.history or '[]')
+            except Exception:
+                hist = []
+            lab_meta.append({'person': e.person, 'provider': e.provider, 'site': e.site,
+                             'start': e.start, 'rate': e.rate, 'off': e.off, 'history': hist,
+                             'updated_at': e.updated_at.isoformat() if e.updated_at else None})
+        z.writestr('labor_duty.json', json.dumps(lab_meta, ensure_ascii=False, indent=1))
+        counts['labor'] = len(lab_meta)
         try:
             from openpyxl import Workbook
             awb = Workbook()
@@ -1797,10 +1810,10 @@ def backup_download():
             'AI Time Keeper — ক্লাউড ব্যাকআপ\n'
             'তৈরি: %s (UTC)\n'
             'অ্যাকাউন্ট: %s\n'
-            'শিট: %d | ইনভয়েস: %d | আর্কাইভ: %d | অগ্রিম-এন্ট্রি: %d | কনফিগ-কি: %d\n'
+            'শিট: %d | ইনভয়েস: %d | আর্কাইভ: %d | অগ্রিম-এন্ট্রি: %d | লেবার: %d | কনফিগ-কি: %d\n'
             % (datetime.utcnow().strftime('%Y-%m-%d %H:%M'), current_user.email,
                counts['sheets'], counts['invoices'], counts['archives'],
-               counts['advance'], counts['config'])))
+               counts['advance'], counts['labor'], counts['config'])))
     from flask import Response
     fname = 'AI_Time_Keeper_CLOUD_BACKUP_%s.zip' % datetime.utcnow().strftime('%Y%m%d_%H%M')
     return Response(buf.getvalue(), mimetype='application/zip',
