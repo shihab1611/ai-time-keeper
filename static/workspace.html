@@ -1649,6 +1649,22 @@ body[data-theme="paper"].themeFade::after{
 <div></div>
 </div>
 </div>
+
+<div class="card" id="wsStorageCard">
+<h2 id="wsStoreTitle">☁️ ক্লাউড মেমোরি — জায়গা কতটুকু ভরা</h2>
+<div class="hint">আপনার সব ডেটা (শিট, ইনভয়েস, খাতা, আর্কাইভ) এই এক জায়গায় থাকে। ফ্রি সীমা ~১ GB — এই গতিতে বছরের পর বছর জায়গা বাকি থাকবে।</div>
+<div style="margin:14px 0 4px">
+ <div style="display:flex;justify-content:space-between;font-size:13px;gap:8px">
+  <span id="stUsedTxt">লোড হচ্ছে…</span><span id="stFreeTxt"></span>
+ </div>
+ <div style="height:16px;border-radius:9px;background:rgba(255,255,255,.12);overflow:hidden;margin-top:6px;border:1px solid rgba(255,255,255,.18)">
+  <div id="stBar" style="height:100%;width:0%;background:linear-gradient(90deg,#4ade80,#22d3ee);transition:width .6s"></div>
+ </div>
+</div>
+<div id="stTables" class="hint">লোড হচ্ছে…</div>
+<div id="stCounts" style="margin-top:10px"></div>
+<div class="hint" id="stNote">সীমা ছুঁতে চাইলে নতুন লেখা থেমে যাবে (কিছু মোছা হয় না) — তখন আমাকে জানাবেন।</div>
+</div>
 </div>
 
 <footer>Company Workspace • Local only • Time Keeper থেকে আলাদা সেকশন</footer>

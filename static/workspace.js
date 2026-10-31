@@ -1,6 +1,6 @@
 /* Company Workspace — separate from Time Keeper */
 const esc=s=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-function wtab(n){[0,1,2,3,4,5,6,7,8,9].forEach(i=>{document.getElementById('ws'+i).style.display=i===n?'':'none';document.getElementById('w'+i).className=i===n?'on':''});if(n===0&&typeof loadDash==='function')loadDash();if(n===1)loadEmp();if(n===2)loadAdv();if(n===3){if(typeof loadInvoice==='function')try{loadInvoice()}catch(e){};if(typeof igenLoad==='function')try{igenLoad()}catch(e){};if(typeof cinvLoad==='function')try{cinvLoad()}catch(e){};setTimeout(function(){const c=document.getElementById('addinvChat');if(c&&!c.dataset.started){c.dataset.started='1';if(typeof aiwWizardStart==='function')aiwWizardStart()}},300)};if(n===6||n===7){loadLabor();loadPhones()}if(n===8)loadProfit();if(n===9){try{wsBuildThemeGrid();wsPaintThemeGrid();wsApplySetLang();WUI.count()}catch(e){}}try{history.replaceState(null,'','#ws'+n)}catch(e){}}
+function wtab(n){[0,1,2,3,4,5,6,7,8,9].forEach(i=>{document.getElementById('ws'+i).style.display=i===n?'':'none';document.getElementById('w'+i).className=i===n?'on':''});if(n===0&&typeof loadDash==='function')loadDash();if(n===1)loadEmp();if(n===2)loadAdv();if(n===3){if(typeof loadInvoice==='function')try{loadInvoice()}catch(e){};if(typeof igenLoad==='function')try{igenLoad()}catch(e){};if(typeof cinvLoad==='function')try{cinvLoad()}catch(e){};setTimeout(function(){const c=document.getElementById('addinvChat');if(c&&!c.dataset.started){c.dataset.started='1';if(typeof aiwWizardStart==='function')aiwWizardStart()}},300)};if(n===6||n===7){loadLabor();loadPhones()}if(n===8)loadProfit();if(n===9){try{wsBuildThemeGrid();wsPaintThemeGrid();wsApplySetLang();WUI.count()}catch(e){}loadStorage()}try{history.replaceState(null,'','#ws'+n)}catch(e){}}
 function fmtSize(n){if(n==null)return '—';if(n<1024)return n+' B';if(n<1048576)return (n/1024).toFixed(1)+' KB';if(n<1073741824)return (n/1048576).toFixed(1)+' MB';return (n/1073741824).toFixed(2)+' GB'}
 let EMPS=[];
 async function loadEmp(){
@@ -675,6 +675,23 @@ async function advImport(inp){
  }catch(e){box.innerHTML='<div class="hint" style="color:#fca5a5">❌ '+esc(e)+'</div>'}
 }
 function advExport(){location.href='/api/ws/advance-export';}
+async function loadStorage(){
+ try{
+  const r=await fetch('/api/storage');const j=await r.json();
+  if(!j.ok)throw j.error||'failed';
+  const bar=document.getElementById('stBar');
+  if(bar)bar.style.width=Math.min(j.used_pct,100)+'%';
+  const u=document.getElementById('stUsedTxt');
+  if(u)u.textContent='☁️ ভরা: '+j.used_mb+' MB ('+j.used_pct+'%)';
+  const f=document.getElementById('stFreeTxt');
+  if(f)f.textContent='খালি: '+j.free_mb+' MB / '+j.limit_mb+' MB';
+  const t=document.getElementById('stTables');
+  if(t)t.innerHTML='🧮 টেবিল-প্রতি খরচ:<br>'+(j.tables||[]).map(x=>'• '+esc(x.name)+' — '+x.kb+' KB').join('<br>');
+  const cn=document.getElementById('stCounts');
+  const k=j.counts||{};
+  if(cn)cn.innerHTML='📊 আপনার হিসাব: 📄 শিট '+k.sheets+' • 🧾 ইনভয়েস '+k.invoices+' • 🗄️ আর্কাইভ '+k.archives+' • 💰 অগ্রিম-এন্ট্রি '+k.advance+' • 🧷 লেবার '+k.labor+' • ⚙️ কনফিগ '+k.config+'<br><span class="hint">অ্যাকাউন্ট: '+esc(j.account||'')+'</span>';
+ }catch(e){const t=document.getElementById('stTables');if(t)t.textContent='❌ '+esc(e)}
+}
 function advForm(i){
  const d=document.getElementById('af'+i);
  if(!d)return;

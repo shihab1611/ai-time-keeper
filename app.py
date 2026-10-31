@@ -1857,6 +1857,47 @@ def cycle_get():
                                    start=start, months_back=back, months_fwd=fwd))
 
 
+# ---------------------------------------------------------------- ক্লাউড মেমোরি (স্টোরেজ-হিসাব)
+@app.route('/api/storage', methods=['GET'], strict_slashes=False)
+@login_required
+def storage_info():
+    """ক্লাউড মেমোরি: মোট/ব্যবহৃত/খালি জায়গা + টেবিল-প্রতি খরচ + আপনার ডেটার হিসাব।"""
+    from sqlalchemy import text
+    LIMIT_MB = 1024.0   # Neon ফ্রি প্ল্যান — প্রজেক্ট-প্রতি ~১ GB
+    total_bytes = 0
+    tables = []
+    try:
+        with db.engine.connect() as conn:
+            total_bytes = conn.execute(text("SELECT pg_database_size(current_database())")).scalar() or 0
+            trows = conn.execute(text(
+                "SELECT c.relname, pg_total_relation_size(c.oid) "
+                "FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace "
+                "WHERE n.nspname='public' AND c.relkind='r' "
+                "ORDER BY pg_total_relation_size(c.oid) DESC")).all()
+            tables = [{'name': r[0], 'kb': round(r[1] / 1024.0, 1)} for r in trows]
+    except Exception:
+        tables = []
+    used_mb = round(total_bytes / 1048576.0, 2)
+    used_pct = round(100.0 * total_bytes / (LIMIT_MB * 1048576.0), 1)
+    counts = {
+        'sheets': DataSheet.query.filter_by(user_id=current_user.id).count(),
+        'invoices': Invoice.query.filter_by(user_id=current_user.id).count(),
+        'archives': MonthArchive.query.filter_by(user_id=current_user.id).count(),
+        'advance': AdvanceEntry.query.filter_by(user_id=current_user.id).count(),
+        'labor': LaborAssign.query.filter_by(user_id=current_user.id).count(),
+        'config': ConfigStore.query.filter_by(user_id=current_user.id).count(),
+    }
+    return jsonify({'ok': True,
+                    'limit_mb': LIMIT_MB,
+                    'used_mb': used_mb,
+                    'used_pct': used_pct,
+                    'free_mb': round(LIMIT_MB - used_mb, 2),
+                    'tables': tables,
+                    'counts': counts,
+                    'account': current_user.email,
+                    'checked_at': datetime.utcnow().isoformat() + 'Z'})
+
+
 # ---------------------------------------------------------------- কনফিগ সেভ
 @app.route('/api/ws/add-invoice-config', methods=['POST'], strict_slashes=False)
 @login_required
