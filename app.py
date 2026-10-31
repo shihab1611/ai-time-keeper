@@ -1584,6 +1584,279 @@ def backup_download():
                     headers={'Content-Disposition': 'attachment; filename="%s"' % fname})
 
 
+# ---------------------------------------------------------------- Profit (রেট/খরচ/পেমেন্ট/ডিউটি)
+def _numf(v):
+    try:
+        return float(v) if v not in (None, '') else 0.0
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _pjson(key, default):
+    raw = get_user_config(current_user.id, key)
+    if raw:
+        try:
+            v = json.loads(raw)
+            if v is not None:
+                return v
+        except Exception:
+            pass
+    return default
+
+
+def _pjson_save(key, value):
+    set_user_config(current_user.id, key, json.dumps(value, ensure_ascii=False))
+
+
+def _profit_files():
+    """আর্কাইভ-করা Total T শিটগুলো — নতুন আগে। file-কি হলো 'archive:<id>'।"""
+    rows = (MonthArchive.query.filter_by(user_id=current_user.id, kind='total_sheet')
+            .order_by(MonthArchive.created_at.desc()).all())
+    files = []
+    for r in rows:
+        files.append({'file': 'archive:%d' % r.id,
+                      'mtime': r.created_at.timestamp() if r.created_at else 0,
+                      'label': r.filename, 'month': r.month, 'year': r.year})
+    return files
+
+
+def _profit_workers(file_key):
+    """Total T শিট (MonthArchive বাইটস) → [{name, provider, hours, rate, total, adv, gas}]"""
+    m = re.match(r'archive:(\d+)', str(file_key or ''))
+    if not m:
+        raise ValueError('টোটাল শিট আর্কাইভ বাছাই করুন')
+    arc = MonthArchive.query.filter_by(id=int(m.group(1)), user_id=current_user.id).first()
+    if not arc or not arc.file_bytes:
+        raise ValueError('টোটাল শিট পাওয়া যায়নি')
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx')
+    tmp.write(arc.file_bytes)
+    tmp.close()
+    try:
+        from generator import preview_total_sheet
+        pv = preview_total_sheet(tmp.name)
+        workers, cur = [], ''
+        for row in pv.get('grand', []):
+            if row.get('t') == 'ref':
+                cur = str(row.get('text', ''))
+            elif row.get('t') == 'w':
+                h, rt = _numf(row.get('h')), _numf(row.get('rate'))
+                # Total কলাম ফর্মুলা — data_only পড়ায় ক্যাশড ০ আসতে পারে,
+                # তাই ঘণ্টা×রেট নিজে হিসাব করি (লোকাল ইঞ্জিনের মতো)
+                workers.append({'name': str(row.get('name', '')), 'provider': cur,
+                                'hours': h, 'rate': rt, 'total': round(h * rt, 2),
+                                'adv': _numf(row.get('adv')), 'gas': _numf(row.get('gas'))})
+        return workers
+    finally:
+        try:
+            os.unlink(tmp.name)
+        except Exception:
+            pass
+
+
+@app.route('/api/ws/profit', methods=['GET'], strict_slashes=False)
+@login_required
+def profit_get():
+    files = _profit_files()
+    want = request.args.get('file') or (files[0]['file'] if files else '')
+    workers, werr = [], None
+    if want:
+        try:
+            workers = _profit_workers(want)
+        except Exception as e:
+            werr = str(e)
+            want = files[0]['file'] if files else ''
+            if want:
+                try:
+                    workers = _profit_workers(want)
+                except Exception:
+                    workers = []
+    return jsonify({'ok': True,
+                    'rates': _pjson('profit_rates', {}),
+                    'srates': _pjson('profit_srates', {}),
+                    'duty': _pjson('profit_duty', {}),
+                    'expenses': _pjson('profit_exp', []),
+                    'pay': _pjson('profit_pay', {}),
+                    'files': files, 'file': want, 'workers': workers,
+                    'error': werr})
+
+
+def _profit_post_load(key, shape):
+    v = _pjson(key, shape)
+    return v if isinstance(v, type(shape)) else shape
+
+
+@app.route('/api/ws/profit-rates', methods=['POST'], strict_slashes=False)
+@login_required
+def profit_rates_post():
+    d = request.get_json() or {}
+    rates = _profit_post_load('profit_rates', {})
+    site = ' '.join(str(d.get('site') or '').split())
+    if not site:
+        return jsonify({'ok': False, 'error': 'সাইটের নাম দিন'}), 400
+    if d.get('del'):
+        rates.pop(site, None)
+    else:
+        rate = _numf(str(d.get('rate') or '').replace(',', ''))
+        if rate < 0:
+            return jsonify({'ok': False, 'error': 'সঠিক রেট লিখুন'}), 400
+        rates[site] = rate
+    _pjson_save('profit_rates', rates)
+    return jsonify({'ok': True, 'rates': rates, 'backup': 'ডেটাবেজ (স্থায়ী)'})
+
+
+@app.route('/api/ws/profit-srates', methods=['POST'], strict_slashes=False)
+@login_required
+def profit_srates_post():
+    d = request.get_json() or {}
+    srates = _profit_post_load('profit_srates', {})
+    person = ' '.join(str(d.get('person') or '').split())
+    key = G.norm_person(person)
+    if not key:
+        return jsonify({'ok': False, 'error': 'লোকের নাম দিন'}), 400
+    if d.get('del'):
+        srates.pop(key, None)
+    else:
+        rate = _numf(str(d.get('rate') or '').replace(',', ''))
+        if rate <= 0:
+            return jsonify({'ok': False, 'error': 'সঠিক রেট লিখুন'}), 400
+        srates[key] = {'name': person, 'rate': rate}
+    _pjson_save('profit_srates', srates)
+    return jsonify({'ok': True, 'srates': srates, 'backup': 'ডেটাবেজ (স্থায়ী)'})
+
+
+@app.route('/api/ws/profit-duty', methods=['POST'], strict_slashes=False)
+@login_required
+def profit_duty_post():
+    d = request.get_json() or {}
+    duty = _profit_post_load('profit_duty', {})
+    month = ' '.join(str(d.get('month') or '').split())[:7]
+    person = ' '.join(str(d.get('person') or '').split())
+    key = G.norm_person(person)
+    if not month or not key:
+        return jsonify({'ok': False, 'error': 'মাস ও নাম দিন'}), 400
+    m = duty.get(month) or {}
+    if d.get('del'):
+        m.pop(key, None)
+        if m:
+            duty[month] = m
+        else:
+            duty.pop(month, None)
+    else:
+        raw = d.get('splits') or []
+        if not isinstance(raw, list) or not raw:
+            return jsonify({'ok': False, 'error': 'সাইট ভাগ দিন'}), 400
+        splits = []
+        for sp in raw:
+            sp = sp or {}
+            site = ' '.join(str(sp.get('site') or '').split())[:60]
+            days = _numf(sp.get('days'))
+            hours = _numf(sp.get('hours'))
+            if site and (days or hours):
+                splits.append({'site': site, 'days': days, 'hours': hours})
+        if not splits:
+            return jsonify({'ok': False, 'error': 'সাইট ভাগ দিন'}), 400
+        m[key] = {'name': re.sub(r'\s*\(.*', '', person).strip(), 'splits': splits}
+        duty[month] = m
+    _pjson_save('profit_duty', duty)
+    return jsonify({'ok': True, 'duty': duty, 'backup': 'ডেটাবেজ (স্থায়ী)'})
+
+
+@app.route('/api/ws/profit-exp', methods=['POST'], strict_slashes=False)
+@login_required
+def profit_exp_post():
+    d = request.get_json() or {}
+    exp = _profit_post_load('profit_exp', [])
+    if d.get('del') is not None:
+        try:
+            idx = int(d.get('del'))
+        except (TypeError, ValueError):
+            return jsonify({'ok': False, 'error': 'সঠিক সারি নয়'}), 400
+        if 0 <= idx < len(exp):
+            exp.pop(idx)
+    else:
+        month = ' '.join(str(d.get('month') or '').split())[:7]
+        label = ' '.join(str(d.get('label') or '').split())[:60]
+        amount = _numf(d.get('amount'))
+        if not month or not label:
+            return jsonify({'ok': False, 'error': 'মাস ও বিবরণ দিন'}), 400
+        exp.append({'month': month, 'label': label, 'amount': amount})
+    _pjson_save('profit_exp', exp)
+    return jsonify({'ok': True, 'expenses': exp, 'backup': 'ডেটাবেজ (স্থায়ী)'})
+
+
+@app.route('/api/ws/profit-pay', methods=['POST'], strict_slashes=False)
+@login_required
+def profit_pay_post():
+    d = request.get_json() or {}
+    pay = _profit_post_load('profit_pay', {})
+    month = ' '.join(str(d.get('month') or '').split())[:7]
+    kind = str(d.get('kind') or '')
+    if not month or not kind:
+        return jsonify({'ok': False, 'error': 'মাস ও ধরন দিন'}), 400
+    m = pay.setdefault(month, {})
+    if kind == 'income':
+        m['income'] = bool(d.get('paid'))
+        m['incomeDate'] = str(d.get('date') or '')[:10]
+    else:
+        prov = ' '.join(str(d.get('provider') or '').split())
+        if not prov:
+            return jsonify({'ok': False, 'error': 'প্রোভাইডার দিন'}), 400
+        pr = m.setdefault('prov', {})
+        if d.get('paid'):
+            pr[prov] = True
+        else:
+            pr.pop(prov, None)
+    _pjson_save('profit_pay', pay)
+    return jsonify({'ok': True, 'pay': pay, 'backup': 'ডেটাবেজ (স্থায়ী)'})
+
+
+@app.route('/api/ws/provider-save', methods=['POST'], strict_slashes=False)
+@login_required
+def provider_save():
+    d = request.get_json() or {}
+    if not isinstance(d, dict) or not d:
+        return jsonify({'ok': False, 'error': 'কনফিগ পাওয়া যায়নি'}), 400
+    _pjson_save('provider_config', d)
+    return jsonify({'ok': True, 'backup': 'ডেটাবেজ (স্থায়ী)'})
+
+
+# ---------------------------------------------------------------- Monthly Cycle টাইমলাইন
+@app.route('/api/cycle', methods=['GET'], strict_slashes=False)
+@login_required
+def cycle_get():
+    import cycle as _cy
+    files = _profit_files()
+    want = request.args.get('file') or (files[0]['file'] if files else '')
+    workers = []
+    if want:
+        try:
+            workers = _profit_workers(want)
+        except Exception:
+            workers = []
+    provs = []
+    for w in workers:
+        pr = str(w.get('provider') or '').strip()
+        if pr and pr not in provs:
+            provs.append(pr)
+    if not provs:
+        for a in LaborAssign.query.filter_by(user_id=current_user.id).all():
+            pr = (a.provider or '').strip()
+            if pr and pr not in provs:
+                provs.append(pr)
+    pay = _pjson('profit_pay', {})
+    try:
+        back = int(request.args.get('back', 3) or 3)
+    except (TypeError, ValueError):
+        back = 3
+    try:
+        fwd = int(request.args.get('fwd', 1) or 1)
+    except (TypeError, ValueError):
+        fwd = 1
+    start = request.args.get('start') or '2026-09'
+    return jsonify(_cy.cycle_state(providers=provs, pay=pay,
+                                   start=start, months_back=back, months_fwd=fwd))
+
+
 # ---------------------------------------------------------------- কনফিগ সেভ
 @app.route('/api/ws/add-invoice-config', methods=['POST'], strict_slashes=False)
 @login_required
