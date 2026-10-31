@@ -127,6 +127,20 @@ class ConfigStore(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class MonthArchive(db.Model):
+    """মাস ক্লিয়ারের হিস্ট্রি — বন্ধ মাসের ডাটা শিট ও টোটাল শিট স্থায়ী সংরক্ষণ।
+    লোকালের months ফোল্ডার-আর্কাইভের ক্লাউড-সমতুল্য।"""
+    __tablename__ = 'month_archives'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    month = db.Column(db.Integer, nullable=False)
+    year = db.Column(db.Integer, nullable=False)
+    kind = db.Column(db.String(30), nullable=False, default='file')  # data_sheet / total_sheet
+    filename = db.Column(db.String(200), nullable=False)
+    file_bytes = db.Column(db.LargeBinary, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
@@ -1185,6 +1199,36 @@ def employee_files():
     return jsonify({'ok': True, 'files': []})
 
 
+# ---------------------------------------------------------------- মাস-আর্কাইভ (হিস্ট্রি)
+@app.route('/api/archives', methods=['GET'], strict_slashes=False)
+@login_required
+def archives_list():
+    rows = (MonthArchive.query.filter_by(user_id=current_user.id)
+            .order_by(MonthArchive.year, MonthArchive.month, MonthArchive.created_at)
+            .all())
+    return jsonify({'ok': True, 'archives': [{
+        'id': r.id, 'month': r.month, 'year': r.year, 'kind': r.kind,
+        'filename': r.filename, 'size': len(r.file_bytes or b''),
+        'created_at': r.created_at.isoformat() if r.created_at else None,
+    } for r in rows]})
+
+
+@app.route('/api/archives/<int:arc_id>/download', methods=['GET'], strict_slashes=False)
+@login_required
+def archives_download(arc_id):
+    arc = MonthArchive.query.filter_by(id=arc_id, user_id=current_user.id).first()
+    if not arc or not arc.file_bytes:
+        return jsonify({'ok': False, 'error': 'ফাইল পাওয়া যায়নি'}), 404
+    from urllib.parse import quote
+    from flask import Response
+    safe = (arc.filename or 'file').replace('"', '')
+    return Response(arc.file_bytes,
+                    mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    headers={'Content-Disposition':
+                             "attachment; filename=\"archive-%d-%02d.xlsx\"; filename*=UTF-8''%s"
+                             % (arc.year, arc.month, quote(safe))})
+
+
 # ---------------------------------------------------------------- কনফিগ সেভ
 @app.route('/api/ws/add-invoice-config', methods=['POST'], strict_slashes=False)
 @login_required
@@ -1259,6 +1303,27 @@ def month_clear_route():
                     year=(result or {}).get('newYear'),
                     file_bytes=nf.read(),
                 ))
+                db.session.commit()
+        # হিস্ট্রি: বন্ধ মাসের ডাটা শিট আর টোটাল শিটও DB-তে স্থায়ী সংরক্ষণ —
+        # লোকালের months\ ফোল্ডার-আর্কাইভের ক্লাউড-সমতুল্য (ডিপ্লয়ে হারায় না)
+        closed_dir = (result or {}).get('closedDir')
+        data_sub = getattr(M, 'DATA_SUB', 'data sheet and total time sheet')
+        if closed_dir and os.path.isdir(closed_dir):
+            names = [n for n in ((result or {}).get('files') or []) if n]
+            if (result or {}).get('totalSheet') and (result or {}).get('totalSheet') not in names:
+                names.append((result or {}).get('totalSheet'))
+            for name in names:
+                path = os.path.join(closed_dir, data_sub, name)
+                if not os.path.isfile(path):
+                    continue
+                kind = 'total_sheet' if name == (result or {}).get('totalSheet') else 'data_sheet'
+                dup = MonthArchive.query.filter_by(user_id=current_user.id, month=month,
+                                                   year=year, kind=kind, filename=name).first()
+                if dup:
+                    continue
+                with open(path, 'rb') as af:
+                    db.session.add(MonthArchive(user_id=current_user.id, month=month, year=year,
+                                                kind=kind, filename=name, file_bytes=af.read()))
                 db.session.commit()
         return jsonify({'ok': True, 'result': result})
     except Exception as e:
