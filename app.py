@@ -207,13 +207,20 @@ def set_user_config(user_id, key, value):
 
 # ---------------------------------------------------------------- ক্লাউড হেল্পার
 def _user_sheet_tmp(sheet_id=None):
-    """লগইন করা ইউজারের সর্বশেষ (বা নির্দিষ্ট) ডাটা শিটের DB বাইটস → টেম্প ফাইল।
+    """লগইন করা ইউজারের ডাটা শিটের DB বাইটস → টেম্প ফাইল।
     রিটার্ন (tmp_path, sheet_row) — কলার শেষে os.unlink করবে। Render-এ 'input output'
-    ফোল্ডার নেই, তাই ইঞ্জিন সবসময় এই টেম্প ফাইল থেকেই পড়বে।"""
+    ফোল্ডার নেই, তাই ইঞ্জিন সবসময় এই টেম্প ফাইল থেকেই পড়বে।
+    বাছাই: নামে 'data sheet' আছে এমন সর্বশেষ শিট (লোকাল ইঞ্জিনের নিয়ম) —
+    নইলে সর্বশেষ আপলোড; এতে টেমপ্লেট/অন্য ফাইল আপলোড করলেও ডাটা শিট হারায় না।"""
     q = DataSheet.query.filter_by(user_id=current_user.id)
     if sheet_id:
-        q = q.filter_by(id=sheet_id)
-    sheet = q.order_by(DataSheet.created_at.desc()).first()
+        sheet = q.filter_by(id=sheet_id).first()
+    else:
+        rows = q.order_by(DataSheet.created_at.desc(), DataSheet.id.desc()).all()
+        sheet = next((s for s in rows
+                      if 'data sheet' in (s.filename or '').lower()), None)
+        if sheet is None and rows:
+            sheet = rows[0]
     if not sheet or not sheet.file_bytes:
         return None, None
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx')
@@ -1472,6 +1479,109 @@ def archives_download(arc_id):
                     headers={'Content-Disposition':
                              "attachment; filename=\"archive-%d-%02d.xlsx\"; filename*=UTF-8''%s"
                              % (arc.year, arc.month, quote(safe))})
+
+
+# ---------------------------------------------------------------- ফুল ব্যাকআপ (ZIP ডাউনলোড)
+@app.route('/api/backup', methods=['GET'], strict_slashes=False)
+@login_required
+def backup_download():
+    """আপনার অ্যাকাউন্টের পুরো ডেটার ZIP — শিট, ইনভয়েস+PDF, মাস-আর্কাইভ,
+    অগ্রিম-খাতা (JSON + ক্লাউড-শিট xlsx), কনফিগ। পিসি-স্ক্রিপ্ট প্রতিদিন এটাই নামিয়ে OneDrive-এ রাখে।"""
+    import io
+    import zipfile as _zf
+    buf = io.BytesIO()
+    counts = {'sheets': 0, 'invoices': 0, 'archives': 0, 'advance': 0, 'config': 0}
+    with _zf.ZipFile(buf, 'w', _zf.ZIP_DEFLATED) as z:
+        used = set()
+
+        def _zname(folder, name, default):
+            base = re.sub(r'[\\/:*?"<>|]+', '_', str(name or default)).strip() or default
+            cand, n = '%s/%s' % (folder, base), 1
+            while cand in used:
+                root, ext = os.path.splitext(base)
+                cand = '%s/%s-%d%s' % (folder, root, n, ext or '.bin')
+                n += 1
+            used.add(cand)
+            return cand
+
+        # ১. আপলোড করা সব শিট (ডাটা শিট + টেমপ্লেট)
+        for s in DataSheet.query.filter_by(user_id=current_user.id).all():
+            if s.file_bytes:
+                z.writestr(_zname('data_sheets', s.filename, 'sheet-%d.xlsx' % s.id), s.file_bytes)
+                counts['sheets'] += 1
+
+        # ২. ইনভয়েস/স্টেটমেন্ট — PDF + পুরো ডেটা
+        inv_meta = []
+        for inv in Invoice.query.filter_by(user_id=current_user.id).order_by(Invoice.id).all():
+            if inv.pdf_bytes:
+                z.writestr(_zname('invoices', '%s-%s.pdf' % (inv.invoice_no, inv.client_name),
+                                  'invoice-%d.pdf' % inv.id), inv.pdf_bytes)
+                counts['invoices'] += 1
+            inv_meta.append({'id': inv.id, 'kind': inv.kind, 'client_name': inv.client_name,
+                             'client_address': inv.client_address, 'month': inv.month,
+                             'year': inv.year, 'invoice_no': inv.invoice_no,
+                             'total': inv.total, 'net': inv.net,
+                             'data': json.loads(inv.data_json) if inv.data_json else None,
+                             'created_at': inv.created_at.isoformat() if inv.created_at else None})
+        if inv_meta:
+            z.writestr('invoices.json', json.dumps(inv_meta, ensure_ascii=False, indent=1))
+
+        # ৩. মাস-আর্কাইভ
+        for a in MonthArchive.query.filter_by(user_id=current_user.id).all():
+            if a.file_bytes:
+                z.writestr(_zname('archives', a.filename, 'archive-%d.xlsx' % a.id), a.file_bytes)
+                counts['archives'] += 1
+
+        # ৪. অগ্রিম-খাতা: JSON + ক্লাউড-শিট
+        adv_rows = _advance_rows(current_user.id)
+        adv_meta = [{'person': e.person, 'amount': e.amount, 'status': e.status,
+                     'date': e.date, 'reason': e.reason,
+                     'created_at': e.created_at.isoformat() if e.created_at else None}
+                    for e in adv_rows]
+        z.writestr('advance_entries.json', json.dumps(adv_meta, ensure_ascii=False, indent=1))
+        counts['advance'] = len(adv_meta)
+        try:
+            from openpyxl import Workbook
+            awb = Workbook()
+            aws = awb.active
+            aws.title = 'Advance'
+            aws.append(['Name', 'Amount', 'Date', 'Status', 'Reason'])
+            _g = 0.0
+            for e in adv_rows:
+                aws.append([e.person, e.amount or 0.0, e.date or '', e.status or '', e.reason or ''])
+                _g += e.amount or 0.0
+            aws.append([])
+            aws.append(['GRAND TOTAL', _g])
+            abuf = io.BytesIO()
+            awb.save(abuf)
+            z.writestr('Advance sheet ক্লাউড.xlsx', abuf.getvalue())
+        except Exception:
+            pass
+
+        # ৫. কনফিগ (ফোন, খাতা, ইনভয়েস-কনফিগ ইত্যাদি)
+        cfg_rows = ConfigStore.query.filter_by(user_id=current_user.id).all()
+        cfg_out = {}
+        for c in cfg_rows:
+            try:
+                cfg_out[c.key] = json.loads(c.value) if c.value else None
+            except Exception:
+                cfg_out[c.key] = c.value
+            counts['config'] += 1
+        z.writestr('config_store.json', json.dumps(cfg_out, ensure_ascii=False, indent=1))
+
+        # ৬. ম্যানিফেস্ট
+        z.writestr('manifest.txt', (
+            'AI Time Keeper — ক্লাউড ব্যাকআপ\n'
+            'তৈরি: %s (UTC)\n'
+            'অ্যাকাউন্ট: %s\n'
+            'শিট: %d | ইনভয়েস: %d | আর্কাইভ: %d | অগ্রিম-এন্ট্রি: %d | কনফিগ-কি: %d\n'
+            % (datetime.utcnow().strftime('%Y-%m-%d %H:%M'), current_user.email,
+               counts['sheets'], counts['invoices'], counts['archives'],
+               counts['advance'], counts['config'])))
+    from flask import Response
+    fname = 'AI_Time_Keeper_CLOUD_BACKUP_%s.zip' % datetime.utcnow().strftime('%Y%m%d_%H%M')
+    return Response(buf.getvalue(), mimetype='application/zip',
+                    headers={'Content-Disposition': 'attachment; filename="%s"' % fname})
 
 
 # ---------------------------------------------------------------- কনফিগ সেভ
