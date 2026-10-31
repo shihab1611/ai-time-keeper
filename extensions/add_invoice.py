@@ -81,10 +81,11 @@ def _next_inv_no(cfg, client_key, month, year, persist=False):
     return "%02d" % inv_no
 
 
-def _all_workers(month, year):
-    """সব প্রোভাইডারের লোক এক মিশ্রিত লিস্টে — নির্দিষ্ট মাসের ডাটা শিট থেকে।"""
+def _all_workers(month, year, fp=None):
+    """সব প্রোভাইডারের লোক এক মিশ্রিত লিস্টে — নির্দিষ্ট মাসের ডাটা শিট থেকে।
+    fp দিলে সেই ফাইল থেকেই (ক্লাউডে DB বাইটসের টেম্প ফাইল)।"""
     try:
-        ds_path, prov_workers, prov_order = G.read_data_sheet(month=month, year=year)
+        ds_path, prov_workers, prov_order = G.read_data_sheet(month=month, year=year, fp=fp)
     except Exception:
         ds_path, prov_workers, prov_order = None, {}, []
     # আর্কাইভ ফলব্যাক: লাইভ শিটে সব ঘণ্টা খালি হলে মাস ফোল্ডার থেকে পড়া
@@ -113,9 +114,9 @@ def _all_workers(month, year):
 
 # ---------------------------------------------------------------- builder
 def build_add_invoice(client_key, client_name, client_address, month=None, year=None,
-                      rates=None, persist_no=False):
+                      rates=None, persist_no=False, fp=None, assigned_no=None, cfg=None):
     """rates: {worker_name: rate} — ব্যবহারকারীর দিয়া রেট।"""
-    cfg = load_cfg()
+    cfg = cfg or load_cfg()
     settings = cfg.get("settings", {})
     comp = cfg.get("company") or {}
     # কোম্পানির তথ্য নিজের কনফিগে না থাকলে পেমেন্ট-স্টেটমেন্ট কনফিগ থেকে (হেডার খালি হয় না)
@@ -127,16 +128,17 @@ def build_add_invoice(client_key, client_name, client_address, month=None, year=
     clients = cfg.get("clients", {})
 
     # ডিফল্ট মাস = ডেটা শিটের মাস
-    dm, dy = G.data_month_year()
+    dm, dy = G.data_month_year(fp)
     m = int(month) if month else dm
     y = int(year) if year else dy
 
     now = time.localtime()
     date_s = "%02d %s %d" % (now.tm_mday, MONTHS.get(now.tm_mon, ""), now.tm_year)
 
-    inv_no = _next_inv_no(cfg, client_key, m, y, persist=persist_no)
+    inv_no = ("%02d" % int(assigned_no)) if assigned_no is not None else \
+        _next_inv_no(cfg, client_key, m, y, persist=persist_no)
 
-    all_workers = _all_workers(m, y)
+    all_workers = _all_workers(m, y, fp)
 
     # সিলেক্ট করা ওয়ার্কারদের শুধু রাখব (রেটস ডিক্টের কি অনুযায়ী)
     selected_names = list(rates.keys()) if rates else []
@@ -187,9 +189,10 @@ def build_add_invoice(client_key, client_name, client_address, month=None, year=
     }
 
 
-def save_add_invoice_pdf(client_key, client_name, client_address, month, year, rates):
+def save_add_invoice_pdf(client_key, client_name, client_address, month, year, rates,
+                         fp=None, assigned_no=None, cfg=None):
     data = build_add_invoice(client_key, client_name, client_address, month, year, rates,
-                             persist_no=True)   # শুধু সেভেই নম্বর চেইনে স্থায়ী হয়
+                             persist_no=True, fp=fp, assigned_no=assigned_no, cfg=cfg)   # শুধু সেভেই নম্বর চেইনে স্থায়ী হয়
     # মাসের নাম থেকে সংখ্যা খুঁজে বের করা
     mnum = [k for k, v in MONTHS.items() if v == data["month_name"]]
     out_dir = _inv_dir(mnum[0] if mnum else 1, data["year"])

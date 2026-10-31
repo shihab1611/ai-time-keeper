@@ -117,11 +117,12 @@ def find_data_sheet(month=None, year=None, source="current"):
     return cand[0]
 
 
-def data_month_year():
-    """ডাটা শিটের A1 তারিখ থেকে (month, year); না পেলে আজকের মাস।"""
+def data_month_year(fp=None):
+    """ডাটা শিটের A1 তারিখ থেকে (month, year); না পেলে আজকের মাস।
+    fp দিলে সেই ফাইল থেকেই (ক্লাউডে DB বাইটসের টেম্প ফাইল)।"""
     from openpyxl import load_workbook
     from datetime import datetime
-    fp = find_data_sheet()
+    fp = fp or find_data_sheet()
     if fp:
         try:
             wb = load_workbook(fp, data_only=True)
@@ -298,27 +299,33 @@ def amount_words(x):
 
 # ---------------------------------------------------------------- invoice builder
 def build_invoice(prov_key, month=None, year=None, rates=None, adv=None, gas=None,
-                  client=None, address=None):
+                  client=None, address=None, fp=None, assigned_no=None, cfg=None):
     """rates: {worker_name: new_rate}; adv/gas: manual totals (None=auto)।
-    client/address: স্টেটমেন্টের PAY TO — UI থেকে এডিট করা ভ্যালু (None=ডিফল্ট)।"""
-    cfg = load_cfg()
+    client/address: স্টেটমেন্টের PAY TO — UI থেকে এডিট করা ভ্যালু (None=ডিফল্ট)।
+    fp: ডাটা শিটের পাথ (ক্লাউডে DB বাইটসের টেম্প ফাইল); assigned_no: DB-ভিত্তিক ইনভয়েস নম্বর;
+    cfg: কলারের দেওয়া কনফিগ (None=ফাইল থেকে)।"""
+    cfg = cfg or load_cfg()
     settings = cfg.get("settings", {})
     company = cfg.get("company", {})
     prov_cfg = cfg.get("providers", {}).get(prov_key, {})
 
     # default month = data sheet's own month (A1 date), not today
-    dm, dy = data_month_year()
+    dm, dy = data_month_year(fp)
     now = time.localtime()
     m = int(month) if month else dm
     y = int(year) if year else dy
     date_s = "%02d %s %d" % (now.tm_mday, MONTHS.get(now.tm_mon, ""), now.tm_year)
 
-    ds_path, prov_workers, prov_order = read_data_sheet(month=m, year=y)
+    ds_path, prov_workers, prov_order = read_data_sheet(month=m, year=y, fp=fp)
     # archive fallback: লাইভ শিটে দিনের ঘর খালি হলে মাস ফোল্ডার থেকে পড়া
+    # (ক্লাউডে মাস ফোল্ডার নেই — না পেলে লাইভ শিটটাই থাকবে)
     if prov_workers and all(sum(w["hours"] for w in ws_list) == 0 for ws_list in prov_workers.values()):
-        arc_path, arc_workers, arc_order = read_data_sheet(month=m, year=y, source="archive")
-        if arc_workers:
-            ds_path, prov_workers, prov_order = arc_path, arc_workers, arc_order
+        try:
+            arc_path, arc_workers, arc_order = read_data_sheet(month=m, year=y, source="archive")
+            if arc_workers:
+                ds_path, prov_workers, prov_order = arc_path, arc_workers, arc_order
+        except Exception:
+            pass
     # provider key normalization: match config keys to data-sheet names
     ds_name = None
     for pn in prov_order:
@@ -380,10 +387,12 @@ def build_invoice(prov_key, month=None, year=None, rates=None, adv=None, gas=Non
 
     net = total_amt - gas_sum - adv_sum
 
-    # statement number: assign once per provider+month, reuse on re-preview
+    # statement number: assigned_no দিলে (ক্লাউডে DB-ভিত্তিক) সেটাই; নইলে পুরনো ফাইল-চেইন
     assigned_map = settings.get("assigned", {}) if isinstance(settings.get("assigned"), dict) else {}
     skey = "%s|%s|%s" % (prov_key, m, y)
-    if skey in assigned_map:
+    if assigned_no is not None:
+        inv_no = int(assigned_no)
+    elif skey in assigned_map:
         inv_no = int(assigned_map[skey])
     else:
         inv_no = int(settings.get("invoice_start_no", 1))
