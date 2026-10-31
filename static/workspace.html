@@ -1396,7 +1396,11 @@ body[data-theme="paper"].themeFade::after{
 
 <div id="ws2" style="display:none"><div class="card">
 <h2 class="advhead">💰 Advance/Salary — <span class="badge" id="advGrand"></span>
-<span class="badge" style="background:rgba(74,222,128,.25);border-color:rgba(74,222,128,.55)" title="বট কাজ করে এই কপির উপরে। আপনার মাস্টার ফাইল (Advance sheet.xlsx) বট কখনো ছোঁয় না।">📄 বট কপি</span>
+<span class="badge" style="background:rgba(74,222,128,.25);border-color:rgba(74,222,128,.55)" title="ক্লাউড খাতা ডেটাবেজে স্থায়ী থাকে — প্রতিটা এন্ট্রির ইতিহাস সংরক্ষিত।">☁️ ক্লাউড খাতা</span>
+<span class="fwrap"><button class="ghost fbtn" onclick="document.getElementById('advImportFile').click()">📥 শিট ইমপোর্ট</button>
+<button class="ghost fbtn" onclick="advExport()">📤 ক্লাউড শিট (.xlsx)</button>
+<input type="file" id="advImportFile" accept=".xlsx,.xlsm" style="display:none" onchange="advImport(this)">
+<label class="hint" style="display:inline-flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="advImportReplace"> আগেরটা মুছে নতুন করে</label></span>
 <span class="fwrap"><button class="ghost fbtn" id="advFilterBtn" onclick="advFilterToggle()">💰 অনপেইড ▾</button>
 <div class="fmenu" id="advFilterMenu">
 <button data-f="unpaid" onclick="setAdvFilter('unpaid')">💰 অনপেইড (বাকি)</button>
@@ -1404,7 +1408,7 @@ body[data-theme="paper"].themeFade::after{
 <button data-f="all" onclick="setAdvFilter('all')">📋 সব এন্ট্রি</button>
 </div></span></h2>
 <div class="advStats" id="advFilterInfo"></div>
-<div class="hint">📂 বট যে ফাইলে কাজ করে: <b>Advance sheet বট.xlsx</b> — আপনার <b>Advance sheet.xlsx</b> মাস্টার ফাইলে বট কোনো লেখা করে না।</div>
+<div class="hint">📂 ক্লাউড খাতাটা ডেটাবেজে স্থায়ী থাকে — পুরনো <b>Advance sheet বট.xlsx</b> ইমপোর্ট করলে সব এন্ট্রি এখানে চলে আসবে। "📤 ক্লাউড শিট" দিলে <b>Advance sheet ক্লাউড.xlsx</b> নামে এক্সপোর্ট হবে।</div>
 <div class="bigadd">
 <div style="flex:1;min-width:150px"><label class="hint">প্রোভাইডার</label><select id="naProv" onchange="naWorker()"><option value="">— বেছে নিন —</option></select></div>
 <div style="flex:1;min-width:150px"><label class="hint">লোক / লক</label><select id="naWorker"><option value="">— আগে প্রোভাইডার বাছুন —</option></select></div>

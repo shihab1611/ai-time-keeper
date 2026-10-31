@@ -144,6 +144,20 @@ class MonthArchive(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
+class AdvanceEntry(db.Model):
+    """অগ্রিম/বেতন-খাতা — ক্লাউডের মূল লেজার (লোকালের 'Advance sheet বট.xlsx'-এর ক্লাউড-সমতুল্য)।
+    status: খালি/'' = বাকি, 'Paide'/'paid'/'clear' জাতীয় = পরিশোধিত (পুরনো শিটের রীতি মেনে)।"""
+    __tablename__ = 'advance_entries'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    person = db.Column(db.String(120), nullable=False, index=True)
+    amount = db.Column(db.Float, nullable=False, default=0.0)
+    status = db.Column(db.String(50), default='')
+    date = db.Column(db.String(20), default='')
+    reason = db.Column(db.String(500), default='')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
@@ -527,6 +541,7 @@ def invoice_gen_route():
         if not (month and year):
             dm, dy = G.data_month_year(fp)
             month, year = (month or dm), (year or dy)
+        adv_people, adv_order = _db_advance_people()
         data = G.build_invoice(
             prov, month, year,
             rates=rates or None,
@@ -534,7 +549,8 @@ def invoice_gen_route():
             gas=(gas if str(gas).strip() != '' else None),
             client=client, address=address,
             fp=fp, assigned_no=_db_next_no('statement', None, month, year),
-            cfg=_merged_cfg('invoice_config')
+            cfg=_merged_cfg('invoice_config'),
+            adv_people=adv_people, adv_order=adv_order
         )
         return jsonify(data)
     except Exception as e:
@@ -614,12 +630,14 @@ def invoice_gen_save_one():
         if not (month and year):
             dm, dy = G.data_month_year(fp)
             month, year = (month or dm), (year or dy)
+        adv_people, adv_order = _db_advance_people()
         data = G.build_invoice(
             prov, month, year,
             rates=rates, adv=adv, gas=gas,
             client=d.get('client'), address=d.get('address'),
             fp=fp, assigned_no=_db_next_no('statement', None, month, year),
-            cfg=_merged_cfg('invoice_config')
+            cfg=_merged_cfg('invoice_config'),
+            adv_people=adv_people, adv_order=adv_order
         )
         # PDF তৈরি করে বাইটস DB-তে — ক্লাউড ডিস্ক ephemeral, ফাইল টেকে না
         pdf_tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
@@ -677,6 +695,7 @@ def invoice_gen_save_pdf():
         if not fp:
             return jsonify({'ok': False, 'error': 'আগে ডাটা শিট আপলোড করুন'}), 400
         cfg = _merged_cfg('invoice_config')
+        adv_people, adv_order = _db_advance_people()
         prov_cfg_all = cfg.get('providers', {})
         ds_path, prov_workers, prov_order = G.read_data_sheet(fp=fp, month=month, year=year)
         if prov_workers and all(sum(w['hours'] for w in ws_list) == 0 for ws_list in prov_workers.values()):
@@ -704,7 +723,7 @@ def invoice_gen_save_pdf():
             try:
                 data = G.build_invoice(key, month, year, fp=fp,
                                        assigned_no=_db_next_no('statement', None, month, year),
-                                       cfg=cfg)
+                                       cfg=cfg, adv_people=adv_people, adv_order=adv_order)
                 pdf_tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
                 pdf_tmp.close()
                 G.make_pdf(data, pdf_tmp.name, kind='statement')
@@ -1200,6 +1219,229 @@ def employees():
 def employee_files():
     # ক্লাউডে OneDrive/ড্রাইভ ফোল্ডার নেই — প্রতি-কর্মচারীর ডকুমেন্ট ফাইল এখনো নেই
     return jsonify({'ok': True, 'files': []})
+
+
+# ---------------------------------------------------------------- অগ্রিম/বেতন খাতা (Advance/Salary)
+def _status_cleared(s):
+    s = (s or '').lower()
+    return ('paid' in s) or ('clear' in s)
+
+
+def _advance_rows(user_id):
+    """ইউজারের সব অগ্রিম-এন্ট্রি, স্থিতিশীল ক্রমে (পুরনো আগে) — UI-র index এর সাথে মেলে।"""
+    return (AdvanceEntry.query.filter_by(user_id=user_id)
+            .order_by(AdvanceEntry.created_at, AdvanceEntry.id).all())
+
+
+def _db_advance_people():
+    """ডেটাবেজ-লেজার → ইঞ্জিনের read_advance()-আকৃতির (people, order) — স্টেটমেন্টে বাদ-যোগের জন্য।"""
+    people, order = {}, []
+    for e in _advance_rows(current_user.id):
+        key = G.norm_person(e.person)
+        if not key:
+            continue
+        if key not in people:
+            people[key] = {'name': re.sub(r'\s*\(.*', '', e.person).strip(),
+                           'total': 0.0, 'paid': 0.0, 'balance': 0.0}
+            order.append(key)
+        amt = e.amount or 0.0
+        people[key]['total'] += amt
+        if _status_cleared(e.status):
+            people[key]['paid'] += amt
+        else:
+            people[key]['balance'] += amt
+    return people, order
+
+
+@app.route('/api/ws/advance', methods=['GET'], strict_slashes=False)
+@login_required
+def advance_get():
+    rows = _advance_rows(current_user.id)
+    people, order = {}, []
+    for e in rows:
+        key = G.norm_person(e.person)
+        if not key:
+            continue
+        if key not in people:
+            people[key] = {'name': re.sub(r'\s*\(.*', '', e.person).strip(),
+                           'entries': [], 'paid': 0.0, 'balance': 0.0, 'total': 0.0}
+            order.append(key)
+        p = people[key]
+        p['entries'].append({'amount': e.amount or 0.0, 'date': e.date or '',
+                             'status': e.status or '', 'reason': e.reason or ''})
+        amt = e.amount or 0.0
+        p['total'] += amt
+        if _status_cleared(e.status):
+            p['paid'] += amt
+        else:
+            p['balance'] += amt
+    assigns = {G.norm_person(a.person): a.provider for a in
+               LaborAssign.query.filter_by(user_id=current_user.id).all()}
+    for key in order:
+        b = people[key]
+        b['provider'] = assigns.get(G.norm_person(b['name']))
+        b['labor'] = b['name']
+        b['site'] = ''
+        b['dutyStart'] = ''
+        b['rate'] = None
+        b['dutyOff'] = False
+    grand = sum(people[k]['total'] for k in order)
+    return jsonify({'ok': True, 'people': [people[k] for k in order],
+                    'grand': grand, 'count': len(order)})
+
+
+@app.route('/api/ws/advance-add', methods=['POST'], strict_slashes=False)
+@login_required
+def advance_add():
+    d = request.get_json() or {}
+    person = ' '.join(str(d.get('person') or '').split())
+    if not person:
+        return jsonify({'ok': False, 'error': 'নাম দিন'}), 400
+    try:
+        amt = float(str(d.get('amount') or '').replace(',', '').strip())
+    except (TypeError, ValueError):
+        return jsonify({'ok': False, 'error': 'সঠিক টাকা লিখুন'}), 400
+    if amt <= 0:
+        return jsonify({'ok': False, 'error': 'সঠিক টাকা লিখুন'}), 400
+    existing = any(G.norm_person(e.person) == G.norm_person(person)
+                   for e in _advance_rows(current_user.id))
+    new_person = not existing
+    db.session.add(AdvanceEntry(
+        user_id=current_user.id, person=person, amount=amt,
+        status='Paide' if d.get('paid') else '',
+        date=str(d.get('date') or '').strip()[:20],
+        reason=' '.join(str(d.get('reason') or '').split())[:500],
+    ))
+    prov = str(d.get('provider') or '').strip()
+    if new_person and prov and prov != '__none__':
+        has = LaborAssign.query.filter_by(user_id=current_user.id, person=person).first()
+        if not has:
+            db.session.add(LaborAssign(user_id=current_user.id, person=person, provider=prov))
+    db.session.commit()
+    return jsonify({'ok': True, 'backup': 'ডেটাবেজ (স্থায়ী)', 'newPerson': new_person})
+
+
+@app.route('/api/ws/advance-paid', methods=['POST'], strict_slashes=False)
+@login_required
+def advance_paid():
+    d = request.get_json() or {}
+    person = str(d.get('person') or '')
+    try:
+        idx = int(d.get('index'))
+    except (TypeError, ValueError):
+        return jsonify({'ok': False, 'error': 'সঠিক সারি নয়'}), 400
+    rows = [e for e in _advance_rows(current_user.id)
+            if G.norm_person(e.person) == G.norm_person(person)]
+    if idx < 0 or idx >= len(rows):
+        return jsonify({'ok': False, 'error': 'সারি পাওয়া যায়নি'}), 404
+    rows[idx].status = 'Paide'
+    db.session.commit()
+    return jsonify({'ok': True})
+
+
+@app.route('/api/ws/advance-remove', methods=['POST'], strict_slashes=False)
+@login_required
+def advance_remove():
+    d = request.get_json() or {}
+    person = str(d.get('person') or '')
+    try:
+        idx = int(d.get('index'))
+    except (TypeError, ValueError):
+        return jsonify({'ok': False, 'error': 'সঠিক সারি নয়'}), 400
+    rows = [e for e in _advance_rows(current_user.id)
+            if G.norm_person(e.person) == G.norm_person(person)]
+    if idx < 0 or idx >= len(rows):
+        return jsonify({'ok': False, 'error': 'সারি পাওয়া যায়নি'}), 404
+    db.session.delete(rows[idx])
+    db.session.commit()
+    return jsonify({'ok': True})
+
+
+@app.route('/api/ws/advance-import', methods=['POST'], strict_slashes=False)
+@login_required
+def advance_import():
+    f = request.files.get('file')
+    if not f or not (f.filename or '').lower().endswith(('.xlsx', '.xlsm')):
+        return jsonify({'ok': False, 'error': '.xlsx ফাইল দিন'}), 400
+    replace = request.form.get('replace') == '1'
+    from openpyxl import load_workbook
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx')
+    tmp.write(f.read())
+    tmp.close()
+    try:
+        wb = load_workbook(tmp.name, data_only=True)
+        ws = wb[wb.sheetnames[0]]
+        blocks = []
+        for c in range(1, (ws.max_column or 0) + 1):
+            if ' '.join(str(ws.cell(4, c).value or '').split()).lower() == 'name':
+                blocks.append((c, c + 1, c + 2, c + 3, c + 4))
+        if not blocks:
+            return jsonify({'ok': False,
+                            'error': 'শিটের ৪ নম্বর সারিতে "Name" হেডার পাওয়া যায়নি — আপনার বট-শিট কি এটা?'}), 400
+        if replace:
+            AdvanceEntry.query.filter_by(user_id=current_user.id).delete()
+        imported, seen_people = 0, set()
+        for (_nc, _ac, _dc, _sc, _rc) in blocks:
+            for r in range(5, (ws.max_row or 0) + 1):
+                name = ' '.join(str(ws.cell(r, _nc).value or '').split())
+                if not name:
+                    continue
+                low = name.lower()
+                if low.startswith('total') or low.startswith('grand balance'):
+                    continue
+                try:
+                    amt = float(str(ws.cell(r, _ac).value or '').replace(',', '') or 0)
+                except (TypeError, ValueError):
+                    amt = 0.0
+                dtv = ws.cell(r, _dc).value
+                if hasattr(dtv, 'strftime'):
+                    dtv = dtv.date().isoformat()
+                else:
+                    dtv = str(dtv or '').strip()[:20]
+                st = ' '.join(str(ws.cell(r, _sc).value or '').split())
+                rs = ' '.join(str(ws.cell(r, _rc).value or '').split())[:500]
+                db.session.add(AdvanceEntry(user_id=current_user.id, person=name,
+                                            amount=amt, status=st, date=dtv, reason=rs))
+                imported += 1
+                seen_people.add(G.norm_person(name))
+        db.session.commit()
+        return jsonify({'ok': True, 'imported': imported, 'people': len(seen_people)})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+    finally:
+        try:
+            os.unlink(tmp.name)
+        except Exception:
+            pass
+
+
+@app.route('/api/ws/advance-export', methods=['GET'], strict_slashes=False)
+@login_required
+def advance_export():
+    """'Advance sheet ক্লাউড.xlsx' — ডেটাবেজ-খাতার Excel প্রতিবিম্ব (ব্যাকআপ/দেখার জন্য)।"""
+    from openpyxl import Workbook
+    from io import BytesIO
+    from flask import Response
+    rows = _advance_rows(current_user.id)
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'Advance'
+    ws.append(['Name', 'Amount', 'Date', 'Status', 'Reason'])
+    grand = 0.0
+    for e in rows:
+        ws.append([e.person, e.amount or 0.0, e.date or '', e.status or '', e.reason or ''])
+        grand += e.amount or 0.0
+    ws.append([])
+    ws.append(['GRAND TOTAL', grand])
+    buf = BytesIO()
+    wb.save(buf)
+    from urllib.parse import quote
+    fname = 'Advance sheet ক্লাউড.xlsx'
+    return Response(buf.getvalue(),
+                    mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    headers={'Content-Disposition':
+                             "attachment; filename=\"advance-sheet-cloud.xlsx\"; "
+                             "filename*=UTF-8''" + quote(fname)})
 
 
 # ---------------------------------------------------------------- মাস-আর্কাইভ (হিস্ট্রি)

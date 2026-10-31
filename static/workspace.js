@@ -658,6 +658,23 @@ async function loadAdv(){
   waSum();waFillSelects();renderAdv();
  }catch(e){box.innerHTML='<div class="hint">❌ '+esc(e)+'</div>'}
 }
+async function advImport(inp){
+ if(!inp.files||!inp.files[0])return;
+ const box=document.getElementById('advFilterInfo');
+ const fd=new FormData();
+ fd.append('file',inp.files[0]);
+ fd.append('replace',document.getElementById('advImportReplace').checked?'1':'0');
+ box.innerHTML='<div class="hint">⏳ ইমপোর্ট হচ্ছে…</div>';
+ try{
+  const r=await fetch('/api/ws/advance-import',{method:'POST',body:fd});
+  const j=await r.json();
+  if(!j.ok)throw j.error||'failed';
+  box.innerHTML='<div class="hint" style="color:#4ade80">✅ ইমপোর্ট হয়েছে: '+j.imported+' এন্ট্রি, '+j.people+' জন লোক</div>';
+  inp.value='';
+  loadAdv();
+ }catch(e){box.innerHTML='<div class="hint" style="color:#fca5a5">❌ '+esc(e)+'</div>'}
+}
+function advExport(){location.href='/api/ws/advance-export';}
 function advForm(i){
  const d=document.getElementById('af'+i);
  if(!d)return;
