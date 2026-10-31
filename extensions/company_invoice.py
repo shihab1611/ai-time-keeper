@@ -60,21 +60,23 @@ def _resolve_ds_name(prov_key, prov_cfg, prov_order):
     return None
 
 
-def build_company_invoice(prov_key, month=None, year=None, rates=None):
-    """rates: {worker_name: client_unit_price} — না দিলে প্রোভাইডারের default client_rate।"""
-    ccfg = load_ccfg()
+def build_company_invoice(prov_key, month=None, year=None, rates=None,
+                          fp=None, assigned_no=None, cfg=None):
+    """rates: {worker_name: client_unit_price} — না দিলে প্রোভাইডারের default client_rate।
+    fp: ডাটা শিটের পাথ (ক্লাউডে DB বাইটসের টেম্প ফাইল); assigned_no: DB-ভিত্তিক ইনভয়েস নম্বর।"""
+    ccfg = cfg or load_ccfg()
     pcfg_all = ccfg.get("providers", {})
     prov_cfg = pcfg_all.get(prov_key, {})
     comp = ccfg.get("company", {}) or G.load_cfg().get("company", {})
 
     # default month = data sheet's own month
-    dm, dy = G.data_month_year()
+    dm, dy = G.data_month_year(fp)
     now = time.localtime()
     m = int(month) if month else dm
     y = int(year) if year else dy
     date_s = "%02d %s %d" % (now.tm_mday, G.MONTHS.get(now.tm_mon, ""), now.tm_year)
 
-    ds_path, prov_workers, prov_order = G.read_data_sheet()
+    ds_path, prov_workers, prov_order = G.read_data_sheet(fp=fp)
     ds_name = _resolve_ds_name(prov_key, prov_cfg, prov_order)
     if ds_name is None:
         raise ValueError("Data sheet-এ প্রোভাইডার পাওয়া যায়নি: " + str(prov_key))
@@ -98,11 +100,13 @@ def build_company_invoice(prov_key, month=None, year=None, rates=None):
 
     net = total_amt  # invoice: no gas, no advance
 
-    # invoice number: separate continuous chain (1 -> 1000)
+    # invoice number: assigned_no দিলে (ক্লাউডে DB-ভিত্তিক) সেটাই; নইলে পুরনো ফাইল-চেইন
     settings = ccfg.setdefault("settings", {})
     assigned = settings.get("assigned", {}) if isinstance(settings.get("assigned"), dict) else {}
     skey = "%s|%s|%s" % (prov_key, m, y)
-    if skey in assigned:
+    if assigned_no is not None:
+        inv_no = int(assigned_no)
+    elif skey in assigned:
         inv_no = int(assigned[skey])
     else:
         inv_no = int(settings.get("invoice_start_no", 1))
@@ -142,8 +146,10 @@ def _invoice_dir(month, year):
     return d
 
 
-def save_invoice_pdf(prov_key, month=None, year=None, rates=None):
-    data = build_company_invoice(prov_key, month, year, rates=rates)
+def save_invoice_pdf(prov_key, month=None, year=None, rates=None,
+                     fp=None, assigned_no=None, cfg=None):
+    data = build_company_invoice(prov_key, month, year, rates=rates,
+                                 fp=fp, assigned_no=assigned_no, cfg=cfg)
     mnum = [k for k, v in G.MONTHS.items() if v == data["month_name"]]
     out_dir = _invoice_dir(mnum[0] if mnum else 1, data["year"])
     fname = "%s-%s.pdf" % (data["invoice_no"], G._safe_name(data["client"] or data["prov_display"]))
