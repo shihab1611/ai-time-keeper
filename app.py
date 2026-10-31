@@ -47,7 +47,19 @@ app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024
 db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
-CORS(app, supports_credentials=True)
+
+# নিরাপত্তা: CORS শুধু অনুমোদিত ওরিজিনে — ক্রেডেনশিয়ালসহ যেকোনো সাইট থেকে কল বন্ধ
+_ALLOWED_ORIGINS = [o.strip() for o in os.environ.get(
+    'ALLOWED_ORIGINS',
+    'https://ai-time-keeper.onrender.com,http://localhost:5000,http://127.0.0.1:5000'
+).split(',') if o.strip()]
+CORS(app, supports_credentials=True, origins=_ALLOWED_ORIGINS or None)
+
+# নিরাপত্তা: সেশন কুকি ফ্ল্যাগ — Render-এ HTTPS বাধ্যতামূলক, লোকাল টেস্টে http চলে
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+if os.environ.get('RENDER'):
+    app.config['SESSION_COOKIE_SECURE'] = True
 
 
 # ---------------------------------------------------------------- ডাটাবেজ মডেল
@@ -119,6 +131,12 @@ def load_user(user_id):
     return User.query.get(int(user_id))
 
 
+@login_manager.unauthorized_handler
+def _unauthorized():
+    # লগইন ছাড়া API কলে redirect নয় — পরিষ্কার 401 JSON
+    return jsonify({'ok': False, 'error': 'লগইন প্রয়োজন'}), 401
+
+
 # ---------------------------------------------------------------- ডাটাবেজ তৈরি
 with app.app_context():
     db.create_all()
@@ -155,6 +173,83 @@ def set_user_config(user_id, key, value):
     db.session.commit()
 
 
+# ---------------------------------------------------------------- ক্লাউড হেল্পার
+def _user_sheet_tmp(sheet_id=None):
+    """লগইন করা ইউজারের সর্বশেষ (বা নির্দিষ্ট) ডাটা শিটের DB বাইটস → টেম্প ফাইল।
+    রিটার্ন (tmp_path, sheet_row) — কলার শেষে os.unlink করবে। Render-এ 'input output'
+    ফোল্ডার নেই, তাই ইঞ্জিন সবসময় এই টেম্প ফাইল থেকেই পড়বে।"""
+    q = DataSheet.query.filter_by(user_id=current_user.id)
+    if sheet_id:
+        q = q.filter_by(id=sheet_id)
+    sheet = q.order_by(DataSheet.created_at.desc()).first()
+    if not sheet or not sheet.file_bytes:
+        return None, None
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx')
+    tmp.write(sheet.file_bytes)
+    tmp.close()
+    return tmp.name, sheet
+
+
+def _user_cfg(key):
+    """ইউজারের DB-সেভ করা কনফিগ (ConfigStore) — না থাকলে বা ভাঙা হলে None।"""
+    raw = get_user_config(current_user.id, key)
+    if raw:
+        try:
+            v = json.loads(raw)
+            if isinstance(v, dict):
+                return v
+        except Exception:
+            pass
+    return None
+
+
+def _merged_cfg(user_key):
+    """ইঞ্জিনের ফাইল-কনফিগের ওপর ইউজারের DB-কনফিগ বসায় — কনফিগ UI-র সেভ বিল্ডারে পৌঁছায়।"""
+    cfg = G.load_cfg()
+    u = _user_cfg(user_key)
+    if u:
+        for k in ('settings', 'company', 'providers'):
+            if isinstance(u.get(k), dict):
+                cfg[k] = u[k]
+    return cfg
+
+
+def _db_next_no(kind, client_name, month, year):
+    """ইনভয়েস নম্বর DB থেকে — একই ইউজার+ধরন+মাসের (ঐচ্ছিকভাবে একই ক্লায়েন্ট) সংখ্যা+১।
+    ক্লাউডে ইঞ্জিনের ফাইল-চেইন ephemeral, তাই ধারাবাহিক নম্বর এখান থেকেই আসে।"""
+    q = Invoice.query.filter_by(user_id=current_user.id, kind=kind, month=month, year=year)
+    if client_name:
+        q = q.filter_by(client_name=client_name)
+    return q.count() + 1
+
+
+# ---------------------------------------------------------------- লগইন রেট-লিমিট (ইন-মেমরি, ছোট ও নির্ভরতা-মুক্ত)
+_login_fails = {}
+_login_lock = __import__('threading').Lock()
+_MAX_FAILS, _LOCK_SECONDS = 5, 900
+
+
+def _login_blocked(email):
+    with _login_lock:
+        f, t = _login_fails.get(email, (0, 0))
+        if f >= _MAX_FAILS and time.time() - t < _LOCK_SECONDS:
+            return True
+        if f >= _MAX_FAILS:
+            _login_fails.pop(email, None)
+    return False
+
+
+def _login_fail(email):
+    with _login_lock:
+        f, t = _login_fails.get(email, (0, 0))
+        _login_fails[email] = (f + 1, time.time() if f + 1 >= _MAX_FAILS else t)
+
+
+def _login_ok(email):
+    with _login_lock:
+        _login_fails.pop(email, None)
+
+
 # ---------------------------------------------------------------- Auth/Lock রাউট (ফ্রন্টএন্ডের প্রত্যাশা অনুযায়ী)
 @app.route('/api/lock/status', methods=['GET'], strict_slashes=False)
 def lock_status():
@@ -167,10 +262,16 @@ def lock_verify():
     d = request.get_json() or {}
     email = (d.get('id') or d.get('email') or '').strip().lower()
     pw = d.get('password') or ''
+    if not email:
+        return jsonify({'ok': False, 'error': 'ভুল আইডি বা পাসওয়ার্ড'}), 401
+    if _login_blocked(email):
+        return jsonify({'ok': False, 'error': 'অনেকবার ভুল চেষ্টা — ১৫ মিনিট পরে আবার করুন'}), 429
     u = User.query.filter_by(email=email).first()
     if u and u.check_password(pw):
+        _login_ok(email)
         login_user(u)
         return jsonify({'ok': True, 'user': {'id': u.id, 'email': u.email, 'name': u.name, 'lang': u.lang}})
+    _login_fail(email)
     return jsonify({'ok': False, 'error': 'ভুল আইডি বা পাসওয়ার্ড'}), 401
 
 
@@ -262,16 +363,20 @@ def upload_excel():
         db.session.add(ds)
         db.session.commit()
 
-        # মাস/সাল ডিটেক্ট
+        # মাস/সাল ডিটেক্ট — ফাইলনামের ৩-অক্ষর মাস (sep) আর ৪- বা ২-ডিজিট সাল (sep-2026 / sep-26)
         m, y = None, None
-        mm = re.search(r'(sep|oct|nov|dec|jan|feb|mar|apr|may|jun|jul|aug)', f.filename.lower())
+        mm = re.search(r'(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)', f.filename.lower())
         if mm:
-            abbr = mm.group(1).upper()
-            rev = {v: k for k, v in G.MONTHS.items()}
-            m = rev.get(abbr[:3])
+            rev3 = {v[:3]: k for k, v in G.MONTHS.items()}
+            m = rev3.get(mm.group(1).upper())
         yr = re.search(r'(\d{4})', f.filename)
         if yr:
             y = int(yr.group(1))
+        else:
+            # ২-ডিজিট সাল ("sep-26") — ২০-৯৯ পর্সন্তকেই ২০০০+ ধরা হয়, অন্য সংখ্যা নয়
+            yr2 = re.search(r'(?:^|\D)([2-9]\d)(?:\D|$)', f.filename)
+            if yr2:
+                y = 2000 + int(yr2.group(1))
         ds.month = m
         ds.year = y
         db.session.commit()
@@ -298,9 +403,10 @@ def months():
               .all())
     out = []
     for s in sheets:
+        lbl = "%02d-%d" % (s.month, s.year) if (s.month and s.year) else (s.filename or 'untitled')
         out.append({
-            'folder': "%02d-%d" % (s.month or 0, s.year or 0),
-            'label': "%02d-%d" % (s.month or 0, s.year or 0),
+            'folder': lbl,
+            'label': lbl,
             'files': [{'name': s.filename, 'xlsx': True}],
             'size': len(s.data_json or ''),
             'month': s.month,
@@ -312,13 +418,30 @@ def months():
 
 # ---------------------------------------------------------------- লেবার
 @app.route('/api/ws/labor', methods=['GET'], strict_slashes=False)
+@app.route('/api/ws/labor-refresh', methods=['GET'], strict_slashes=False)
 @login_required
 def labor():
-    assigns = LaborAssign.query.filter_by(user_id=current_user.id).all()
+    """আপলোড করা ডাটা শিট থেকে আসল ঘণ্টা/রেট; ইউজারের বসানো অ্যাসাইনমেন্ট থাকলে সেই প্রোভাইডার।"""
+    fp = None
+    rows = []
+    try:
+        fp, _sheet = _user_sheet_tmp()
+        if fp:
+            dm, dy = G.data_month_year(fp)
+            rows = AI._all_workers(dm, dy, fp)
+    finally:
+        if fp:
+            try:
+                os.unlink(fp)
+            except Exception:
+                pass
+    assigns = {a.person: a.provider for a in
+               LaborAssign.query.filter_by(user_id=current_user.id).all()}
     providers = {}
-    for a in assigns:
-        providers.setdefault(a.provider, []).append({
-            'name': a.person, 'hours': 0, 'rate': 0, 'provider': a.provider
+    for w in rows:
+        prov = assigns.get(w['name'], w['provider'])
+        providers.setdefault(prov, []).append({
+            'name': w['name'], 'hours': w['hours'], 'rate': w['rate'], 'provider': prov
         })
     return jsonify({'ok': True, 'providers': [
         {'provider': k, 'workers': v} for k, v in providers.items()
@@ -362,47 +485,50 @@ def invoice_gen_route():
             rates = {}
     client = request.args.get('client', '') or None
     address = request.args.get('address', '') or None
+    if not prov:
+        return jsonify({'ok': False, 'error': 'প্রোভাইডার সিলেক্ট করুন'}), 400
 
+    fp = None
     try:
+        fp, _sheet = _user_sheet_tmp()
+        if not fp:
+            return jsonify({'ok': False, 'error': 'আগে ডাটা শিট আপলোড করুন'}), 400
+        if not (month and year):
+            dm, dy = G.data_month_year(fp)
+            month, year = (month or dm), (year or dy)
         data = G.build_invoice(
             prov, month, year,
             rates=rates or None,
             adv=(adv if str(adv).strip() != '' else None),
             gas=(gas if str(gas).strip() != '' else None),
-            client=client, address=address
+            client=client, address=address,
+            fp=fp, assigned_no=_db_next_no('statement', None, month, year),
+            cfg=_merged_cfg('invoice_config')
         )
         return jsonify(data)
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
+    finally:
+        if fp:
+            try:
+                os.unlink(fp)
+            except Exception:
+                pass
 
 
 # ---------------------------------------------------------------- স্টেটমেন্ট প্রোভাইডার লিস্ট
 @app.route('/api/ws/invoice-gen-providers', methods=['GET'], strict_slashes=False)
 @login_required
 def invoice_gen_providers():
+    fp = None
     try:
-        sheet = (DataSheet.query
-                 .filter_by(user_id=current_user.id)
-                 .order_by(DataSheet.created_at.desc())
-                 .first())
-        ds_path = None
-        if sheet and sheet.file_bytes:
-            tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx')
-            tmp.write(sheet.file_bytes)
-            tmp.close()
-            try:
-                ds_path, prov_workers, prov_order = G.read_data_sheet(fp=tmp.name)
-            finally:
-                try:
-                    os.unlink(tmp.name)
-                except Exception:
-                    pass
-        else:
-            ds_path, prov_workers, prov_order = G.read_data_sheet()
-
-        dm, dy = G.data_month_year()
+        fp, _sheet = _user_sheet_tmp()
+        if not fp:
+            return jsonify({'ok': False, 'error': 'আগে ডাটা শিট আপলোড করুন'}), 400
+        ds_path, prov_workers, prov_order = G.read_data_sheet(fp=fp)
+        dm, dy = G.data_month_year(fp)
         out = []
-        cfg = G.load_cfg()
+        cfg = _merged_cfg('invoice_config')
         for pn in prov_order:
             key = None
             for k, v in cfg.get('providers', {}).items():
@@ -427,6 +553,12 @@ def invoice_gen_providers():
         })
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
+    finally:
+        if fp:
+            try:
+                os.unlink(fp)
+            except Exception:
+                pass
 
 
 # ---------------------------------------------------------------- স্টেটমেন্ট সেভ (PDF)
@@ -443,23 +575,41 @@ def invoice_gen_save_one():
     adv = d.get('adv')
     gas = d.get('gas')
 
+    fp = None
     try:
+        fp, _sheet = _user_sheet_tmp()
+        if not fp:
+            return jsonify({'ok': False, 'error': 'আগে ডাটা শিট আপলোড করুন'}), 400
+        if not (month and year):
+            dm, dy = G.data_month_year(fp)
+            month, year = (month or dm), (year or dy)
         data = G.build_invoice(
             prov, month, year,
             rates=rates, adv=adv, gas=gas,
-            client=d.get('client'), address=d.get('address')
+            client=d.get('client'), address=d.get('address'),
+            fp=fp, assigned_no=_db_next_no('statement', None, month, year),
+            cfg=_merged_cfg('invoice_config')
         )
+        # PDF তৈরি করে বাইটস DB-তে — ক্লাউড ডিস্ক ephemeral, ফাইল টেকে না
+        pdf_tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
+        pdf_tmp.close()
+        G.make_pdf(data, pdf_tmp.name, kind='statement')
+        with open(pdf_tmp.name, 'rb') as pf:
+            pdf_bytes = pf.read()
+        os.unlink(pdf_tmp.name)
+
         inv = Invoice(
             user_id=current_user.id,
             client_name=data.get('client', prov),
             client_address=data.get('address'),
-            month=data.get('month', 1),
-            year=data.get('year', 2026),
+            month=data.get('month', month),
+            year=data.get('year', year),
             invoice_no=data.get('invoice_no', '01'),
             kind='statement',
             total=data.get('total', 0),
             net=data.get('net', 0),
-            data_json=json.dumps(data, ensure_ascii=False)
+            data_json=json.dumps(data, ensure_ascii=False),
+            pdf_bytes=pdf_bytes
         )
         db.session.add(inv)
         db.session.commit()
@@ -471,6 +621,12 @@ def invoice_gen_save_one():
         })
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
+    finally:
+        if fp:
+            try:
+                os.unlink(fp)
+            except Exception:
+                pass
 
 
 # ---------------------------------------------------------------- স্টেটমেন্ট সব সেভ (মাস ক্লায়ার সময়)
@@ -484,14 +640,21 @@ def invoice_gen_save_pdf():
         now = time.localtime()
         month, year = now.tm_mon, now.tm_year
 
+    fp = None
     try:
-        cfg = G.load_cfg()
+        fp, _sheet = _user_sheet_tmp()
+        if not fp:
+            return jsonify({'ok': False, 'error': 'আগে ডাটা শিট আপলোড করুন'}), 400
+        cfg = _merged_cfg('invoice_config')
         prov_cfg_all = cfg.get('providers', {})
-        ds_path, prov_workers, prov_order = G.read_data_sheet(month=month, year=year)
+        ds_path, prov_workers, prov_order = G.read_data_sheet(fp=fp, month=month, year=year)
         if prov_workers and all(sum(w['hours'] for w in ws_list) == 0 for ws_list in prov_workers.values()):
-            arc_path, arc_workers, arc_order = G.read_data_sheet(month=month, year=year, source='archive')
-            if arc_workers:
-                ds_path, prov_workers, prov_order = arc_path, arc_workers, arc_order
+            try:
+                arc_path, arc_workers, arc_order = G.read_data_sheet(month=month, year=year, source='archive')
+                if arc_workers:
+                    ds_path, prov_workers, prov_order = arc_path, arc_workers, arc_order
+            except Exception:
+                pass
 
         done, errors, seen = [], [], set()
         for pn in prov_order:
@@ -506,8 +669,16 @@ def invoice_gen_save_pdf():
             if key in seen:
                 continue
             seen.add(key)
+            pdf_tmp = None
             try:
-                data = G.build_invoice(key, month, year)
+                data = G.build_invoice(key, month, year, fp=fp,
+                                       assigned_no=_db_next_no('statement', None, month, year),
+                                       cfg=cfg)
+                pdf_tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
+                pdf_tmp.close()
+                G.make_pdf(data, pdf_tmp.name, kind='statement')
+                with open(pdf_tmp.name, 'rb') as pf:
+                    pdf_bytes = pf.read()
                 fname = "%02d-%s.pdf" % (int(data['invoice_no']), G._safe_name(data['prov_display']))
                 inv = Invoice(
                     user_id=current_user.id,
@@ -518,16 +689,29 @@ def invoice_gen_save_pdf():
                     kind='statement',
                     total=data.get('total', 0),
                     net=data.get('net', 0),
-                    data_json=json.dumps(data, ensure_ascii=False)
+                    data_json=json.dumps(data, ensure_ascii=False),
+                    pdf_bytes=pdf_bytes
                 )
                 db.session.add(inv)
                 db.session.commit()
                 done.append(fname)
             except Exception as e:
                 errors.append("%s: %s" % (key, e))
+            finally:
+                if pdf_tmp:
+                    try:
+                        os.unlink(pdf_tmp.name)
+                    except Exception:
+                        pass
         return jsonify({'ok': True, 'saved': done, 'count': len(done), 'errors': errors})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
+    finally:
+        if fp:
+            try:
+                os.unlink(fp)
+            except Exception:
+                pass
 
 
 # ---------------------------------------------------------------- ③ Add Invoice প্রিভিউ
@@ -550,24 +734,46 @@ def add_invoice_preview():
             rates = {}
     if not client_key:
         return jsonify({'ok': False, 'error': 'কোম্পানি/সাইটের নাম দিন'}), 400
+
+    fp = None
     try:
-        data = AI.build_add_invoice(client_key, client_name, client_address, month, year, rates)
+        fp, _sheet = _user_sheet_tmp()
+        if not fp:
+            return jsonify({'ok': False, 'error': 'আগে ডাটা শিট আপলোড করুন'}), 400
+        if not (month and year):
+            dm, dy = G.data_month_year(fp)
+            month, year = (month or dm), (year or dy)
+        data = AI.build_add_invoice(
+            client_key, client_name, client_address, month, year, rates,
+            fp=fp, assigned_no=_db_next_no('add_invoice', client_name, month, year),
+            cfg=_merged_cfg('add_invoice_config')
+        )
         return jsonify(data)
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
+    finally:
+        if fp:
+            try:
+                os.unlink(fp)
+            except Exception:
+                pass
 
 
 # ---------------------------------------------------------------- ③ Add Invoice ওয়ার্কার লিস্ট
 @app.route('/api/ws/add-invoice-providers', methods=['GET'], strict_slashes=False)
 @login_required
 def add_invoice_providers():
+    fp = None
     try:
+        fp, _sheet = _user_sheet_tmp()
+        if not fp:
+            return jsonify({'ok': False, 'error': 'আগে ডাটা শিট আপলোড করুন'}), 400
         month = int(request.args.get('month', 0) or 0)
         year = int(request.args.get('year', 0) or 0)
-        dm, dy = G.data_month_year()
+        dm, dy = G.data_month_year(fp)
         m = int(month) if month else dm
         y = int(year) if year else dy
-        all_workers = AI._all_workers(m, y)
+        all_workers = AI._all_workers(m, y, fp)
         seen, distinct = set(), []
         for w in all_workers:
             key = w['name'].strip().lower()
@@ -585,6 +791,12 @@ def add_invoice_providers():
         })
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
+    finally:
+        if fp:
+            try:
+                os.unlink(fp)
+            except Exception:
+                pass
 
 
 # ---------------------------------------------------------------- ③ Add Invoice সেভ
@@ -602,21 +814,40 @@ def add_invoice_save():
     if not client_key:
         return jsonify({'ok': False, 'error': 'কোম্পানি/সাইটের নাম দিন'}), 400
 
+    fp = None
     try:
+        fp, _sheet = _user_sheet_tmp()
+        if not fp:
+            return jsonify({'ok': False, 'error': 'আগে ডাটা শিট আপলোড করুন'}), 400
+        if not (month and year):
+            dm, dy = G.data_month_year(fp)
+            month, year = (month or dm), (year or dy)
         data, out_dir, fname = AI.save_add_invoice_pdf(
-            client_key, client_name, client_address, month, year, rates
+            client_key, client_name, client_address, month, year, rates,
+            fp=fp, assigned_no=_db_next_no('add_invoice', client_name, month, year),
+            cfg=_merged_cfg('add_invoice_config')
         )
+        # তৈরি হওয়া PDF ফাইলটা DB-তে নিই — Render-এর ডিস্ক ephemeral
+        pdf_bytes = None
+        try:
+            with open(os.path.join(out_dir, fname), 'rb') as pf:
+                pdf_bytes = pf.read()
+            os.unlink(os.path.join(out_dir, fname))
+        except Exception:
+            pdf_bytes = None
+
         inv = Invoice(
             user_id=current_user.id,
             client_name=client_name,
             client_address=client_address,
-            month=data.get('month', 1),
-            year=data.get('year', 2026),
+            month=data.get('month', month),
+            year=data.get('year', year),
             invoice_no=data['invoice_no'],
             kind='add_invoice',
             total=data.get('total', 0),
             net=data.get('net', 0),
-            data_json=json.dumps(data, ensure_ascii=False)
+            data_json=json.dumps(data, ensure_ascii=False),
+            pdf_bytes=pdf_bytes
         )
         db.session.add(inv)
         db.session.commit()
@@ -626,6 +857,41 @@ def add_invoice_save():
         })
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
+    finally:
+        if fp:
+            try:
+                os.unlink(fp)
+            except Exception:
+                pass
+
+
+# ---------------------------------------------------------------- ইনভয়েস PDF ডাউনলোড
+@app.route('/api/invoices', methods=['GET'], strict_slashes=False)
+@login_required
+def invoices_list():
+    rows = (Invoice.query
+            .filter_by(user_id=current_user.id)
+            .order_by(Invoice.created_at.desc())
+            .all())
+    return jsonify({'ok': True, 'invoices': [{
+        'id': r.id, 'client_name': r.client_name, 'kind': r.kind,
+        'month': r.month, 'year': r.year, 'invoice_no': r.invoice_no,
+        'total': r.total, 'net': r.net, 'has_pdf': bool(r.pdf_bytes),
+        'created_at': r.created_at.isoformat() if r.created_at else None,
+    } for r in rows]})
+
+
+@app.route('/api/invoices/<int:inv_id>/pdf', methods=['GET'], strict_slashes=False)
+@login_required
+def invoice_pdf(inv_id):
+    inv = Invoice.query.filter_by(id=inv_id, user_id=current_user.id).first()
+    if not inv or not inv.pdf_bytes:
+        return jsonify({'ok': False, 'error': 'PDF পাওয়া যায়নি'}), 404
+    from flask import Response
+    return Response(inv.pdf_bytes, mimetype='application/pdf', headers={
+        'Content-Disposition': 'inline; filename="%s.pdf"' % (
+            G._safe_name("%s-%s" % (inv.invoice_no, inv.client_name)) or 'invoice')
+    })
 
 
 # ---------------------------------------------------------------- কনফিগ সেভ
@@ -666,6 +932,11 @@ def month_clear_route():
     sheet = DataSheet.query.filter_by(id=data_id, user_id=current_user.id).first() if data_id else None
     if not sheet or not sheet.file_bytes:
         return jsonify({'ok': False, 'error': 'ডাটা শিট পাওয়া যায়নি'}), 400
+    # নিরাপত্তা: শিটের নিজের মাস আর চাওয়া মাস মিলছে কিনা — ভুল শিটে ভুল মাস ক্লিয়ার ঠেকাতে
+    if sheet.month and sheet.year and (sheet.month != month or sheet.year != year):
+        return jsonify({'ok': False,
+                        'error': 'শিটটার মাস %02d-%d, কিন্তু ক্লিয়ার করতে চেয়েছেন %02d-%d — মিলিয়ে নিন'
+                                 % (sheet.month, sheet.year, month, year)}), 400
 
     tmp_data = tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx')
     tmp_data.write(sheet.file_bytes)
@@ -686,6 +957,18 @@ def month_clear_route():
             do_generate=True,
             backup_fn=lambda p: backup_file(p, 'month_clear')
         )
+        # নতুন মাসের শিটটাও DB-তে রাখি — Render-এর ডিস্ক ephemeral, ফাইল রিস্টার্টে হারায়
+        new_path = (result or {}).get('newPath')
+        if new_path and os.path.isfile(new_path):
+            with open(new_path, 'rb') as nf:
+                db.session.add(DataSheet(
+                    user_id=current_user.id,
+                    filename=(result or {}).get('newFile') or os.path.basename(new_path),
+                    month=(result or {}).get('newMonthNum'),
+                    year=(result or {}).get('newYear'),
+                    file_bytes=nf.read(),
+                ))
+                db.session.commit()
         return jsonify({'ok': True, 'result': result})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
