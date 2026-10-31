@@ -53,3 +53,6 @@ profit_srates.json
 provider_config.json
 extensions/add_invoice_config.json
 extensions/backup_state.json
+
+# ক্লাউড-ব্যাকআপ কনফিগ (পাসওয়ার্ড আছে — রিপোতে কখনো না)
+cloud_backup_config.json
