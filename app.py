@@ -30,6 +30,7 @@ if os.path.join(BASE, "extensions") not in __import__("sys").path:
 
 import invoice_gen as G
 import add_invoice as AI
+import company_invoice as C
 import months as M
 
 # ---------------------------------------------------------------- app setup
@@ -207,6 +208,19 @@ def _merged_cfg(user_key):
     """ইঞ্জিনের ফাইল-কনফিগের ওপর ইউজারের DB-কনফিগ বসায় — কনফিগ UI-র সেভ বিল্ডারে পৌঁছায়।"""
     cfg = G.load_cfg()
     u = _user_cfg(user_key)
+    if u:
+        for k in ('settings', 'company', 'providers'):
+            if isinstance(u.get(k), dict):
+                cfg[k] = u[k]
+    return cfg
+
+
+def _ci_cfg():
+    """কোম্পানি-ইনভয়েস কনফিগ — নিজের ফাইল + ইউজারের DB-সেভ ওভারলে।"""
+    cfg = C.load_ccfg()
+    if not cfg.get('company'):
+        cfg['company'] = G.load_cfg().get('company', {})
+    u = _user_cfg('company_invoice_config')
     if u:
         for k in ('settings', 'company', 'providers'):
             if isinstance(u.get(k), dict):
@@ -892,6 +906,283 @@ def invoice_pdf(inv_id):
         'Content-Disposition': 'inline; filename="%s.pdf"' % (
             G._safe_name("%s-%s" % (inv.invoice_no, inv.client_name)) or 'invoice')
     })
+
+
+# ---------------------------------------------------------------- ② কোম্পানি ইনভয়েস (Company Invoice)
+@app.route('/api/ws/company-invoice-providers', methods=['GET'], strict_slashes=False)
+@login_required
+def company_invoice_providers():
+    fp = None
+    try:
+        fp, _sheet = _user_sheet_tmp()
+        if not fp:
+            return jsonify({'ok': False, 'error': 'আগে ডাটা শিট আপলোড করুন'}), 400
+        _p, prov_workers, prov_order = G.read_data_sheet(fp=fp)
+        dm, dy = G.data_month_year(fp)
+        ccfg = _ci_cfg()
+        out = []
+        for pn in prov_order:
+            key = None
+            for k, v in ccfg.get('providers', {}).items():
+                dsp = G.norm_person(v.get('display', ''))
+                if dsp and dsp in G.norm_person(pn):
+                    key = k
+                    break
+            if key is None:
+                key = G.norm_person(pn).replace(' ', '.')
+            pc = ccfg.get('providers', {}).get(key, {})
+            out.append({'key': key, 'data_name': pn,
+                        'display': pc.get('display', pn),
+                        'client': pc.get('client', ''),
+                        'client_rate': pc.get('client_rate', 0),
+                        'workers': len(prov_workers.get(pn, []))})
+        return jsonify({'ok': True, 'providers': out,
+                        'data_month': dm, 'data_year': dy,
+                        'settings': ccfg.get('settings', {}),
+                        'company': ccfg.get('company', {}),
+                        'clients': ccfg.get('providers', {})})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+    finally:
+        if fp:
+            try:
+                os.unlink(fp)
+            except Exception:
+                pass
+
+
+@app.route('/api/ws/company-invoice', methods=['GET'], strict_slashes=False)
+@login_required
+def company_invoice_route():
+    prov = (request.args.get('prov') or '').strip()
+    if not prov:
+        return jsonify({'ok': False, 'error': 'প্রোভাইডার সিলেক্ট করুন'}), 400
+    month = int(request.args.get('month', 0) or 0)
+    year = int(request.args.get('year', 0) or 0)
+    rates_raw = request.args.get('rates', '')
+    rates = None
+    if rates_raw:
+        try:
+            v = json.loads(rates_raw)
+            if isinstance(v, dict):
+                rates = v
+        except Exception:
+            rates = None
+
+    fp = None
+    try:
+        fp, _sheet = _user_sheet_tmp()
+        if not fp:
+            return jsonify({'ok': False, 'error': 'আগে ডাটা শিট আপলোড করুন'}), 400
+        if not (month and year):
+            dm, dy = G.data_month_year(fp)
+            month, year = (month or dm), (year or dy)
+        data = C.build_company_invoice(
+            prov, month, year, rates=rates,
+            fp=fp, assigned_no=_db_next_no('company_invoice', None, month, year),
+            cfg=_ci_cfg()
+        )
+        return jsonify(data)
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+    finally:
+        if fp:
+            try:
+                os.unlink(fp)
+            except Exception:
+                pass
+
+
+@app.route('/api/ws/company-invoice-save-one', methods=['POST'], strict_slashes=False)
+@login_required
+def company_invoice_save_one():
+    d = request.get_json() or {}
+    prov = (d.get('prov') or '').strip()
+    if not prov:
+        return jsonify({'ok': False, 'error': 'প্রোভাইডার সিলেক্ট করুন'}), 400
+    month = int(d.get('month') or 0) or None
+    year = int(d.get('year') or 0) or None
+    rates = d.get('rates') if isinstance(d.get('rates'), dict) else None
+
+    fp = None
+    try:
+        fp, _sheet = _user_sheet_tmp()
+        if not fp:
+            return jsonify({'ok': False, 'error': 'আগে ডাটা শিট আপলোড করুন'}), 400
+        if not (month and year):
+            dm, dy = G.data_month_year(fp)
+            month, year = (month or dm), (year or dy)
+        data = C.build_company_invoice(
+            prov, month, year, rates=rates,
+            fp=fp, assigned_no=_db_next_no('company_invoice', None, month, year),
+            cfg=_ci_cfg()
+        )
+        pdf_tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
+        pdf_tmp.close()
+        G.make_pdf(data, pdf_tmp.name, kind='invoice')
+        with open(pdf_tmp.name, 'rb') as pf:
+            pdf_bytes = pf.read()
+        os.unlink(pdf_tmp.name)
+
+        inv = Invoice(
+            user_id=current_user.id,
+            client_name=data.get('client', prov),
+            client_address=data.get('address'),
+            month=month, year=year,
+            invoice_no=data['invoice_no'],
+            kind='company_invoice',
+            total=data.get('total', 0),
+            net=data.get('net', 0),
+            data_json=json.dumps(data, ensure_ascii=False),
+            pdf_bytes=pdf_bytes
+        )
+        db.session.add(inv)
+        db.session.commit()
+        return jsonify({
+            'ok': True,
+            'file': "%s-%s.pdf" % (data['invoice_no'], G._safe_name(data['client'] or data['prov_display'])),
+            'invoice_no': data['invoice_no'],
+            'id': inv.id
+        })
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+    finally:
+        if fp:
+            try:
+                os.unlink(fp)
+            except Exception:
+                pass
+
+
+@app.route('/api/ws/company-invoice-config', methods=['POST'], strict_slashes=False)
+@login_required
+def company_invoice_config():
+    d = request.get_json() or {}
+    try:
+        set_user_config(current_user.id, 'company_invoice_config', json.dumps(d, ensure_ascii=False))
+        return jsonify({'ok': True})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+# ---------------------------------------------------------------- ফোন নম্বর (WhatsApp ট্যাব)
+@app.route('/api/ws/phones', methods=['GET'], strict_slashes=False)
+@login_required
+def phones_get():
+    try:
+        phones = json.loads(get_user_config(current_user.id, 'phones', '{}') or '{}')
+    except Exception:
+        phones = {}
+    return jsonify({'ok': True, 'phones': phones if isinstance(phones, dict) else {}})
+
+
+@app.route('/api/ws/phones', methods=['POST'], strict_slashes=False)
+@login_required
+def phones_set():
+    d = request.get_json() or {}
+    person = (d.get('person') or '').strip()
+    if not person:
+        return jsonify({'ok': False, 'error': 'নাম প্রয়োজন'}), 400
+    try:
+        phones = json.loads(get_user_config(current_user.id, 'phones', '{}') or '{}')
+    except Exception:
+        phones = {}
+    if not isinstance(phones, dict):
+        phones = {}
+    val = str(d.get('set') or d.get('number') or '').strip()
+    if val:
+        phones[person] = val
+    else:
+        phones.pop(person, None)
+    set_user_config(current_user.id, 'phones', json.dumps(phones, ensure_ascii=False))
+    return jsonify({'ok': True, 'phones': phones})
+
+
+# ---------------------------------------------------------------- ইনকাম/বাবছায়ের খাতা (লোকাল invoice_data.json-এর ক্লাউড রূপ)
+def _inv_rows():
+    try:
+        rows = json.loads(get_user_config(current_user.id, 'invoice_data', '[]') or '[]')
+    except Exception:
+        rows = []
+    return rows if isinstance(rows, list) else []
+
+
+@app.route('/api/ws/invoice', methods=['GET'], strict_slashes=False)
+@login_required
+def invoice_rows():
+    rows = _inv_rows()
+    total_in = sum(float(r.get('amount') or 0) for r in rows if r.get('dir') != 'out')
+    total_out = sum(float(r.get('amount') or 0) for r in rows if r.get('dir') == 'out')
+    return jsonify({'ok': True, 'entries': rows,
+                    'totalIn': round(total_in, 2), 'totalOut': round(total_out, 2),
+                    'balance': round(total_in - total_out, 2)})
+
+
+@app.route('/api/ws/invoice-add', methods=['POST'], strict_slashes=False)
+@login_required
+def invoice_add():
+    d = request.get_json() or {}
+    try:
+        amt = float(d.get('amount') or 0)
+    except (TypeError, ValueError):
+        amt = 0.0
+    if not amt:
+        return jsonify({'ok': False, 'error': 'সঠিক পরিমাণ দিন'}), 400
+    rows = _inv_rows()
+    rows.append({'amount': amt, 'date': d.get('date') or '',
+                 'dir': d.get('dir') or 'in', 'desc': d.get('desc') or ''})
+    set_user_config(current_user.id, 'invoice_data', json.dumps(rows, ensure_ascii=False))
+    return jsonify({'ok': True, 'count': len(rows)})
+
+
+@app.route('/api/ws/invoice-remove', methods=['POST'], strict_slashes=False)
+@login_required
+def invoice_remove():
+    d = request.get_json() or {}
+    try:
+        idx = int(d.get('index'))
+    except (TypeError, ValueError):
+        return jsonify({'ok': False, 'error': 'সঠিক সারি নয়'}), 400
+    rows = _inv_rows()
+    if 0 <= idx < len(rows):
+        rows.pop(idx)
+        set_user_config(current_user.id, 'invoice_data', json.dumps(rows, ensure_ascii=False))
+        return jsonify({'ok': True})
+    return jsonify({'ok': False, 'error': 'সারি পাওয়া যায়নি'}), 404
+
+
+# ---------------------------------------------------------------- কর্মচারী তালিকা (ডাটা শিটের ওয়ার্কার)
+@app.route('/api/ws/employees', methods=['GET'], strict_slashes=False)
+@login_required
+def employees():
+    fp = None
+    try:
+        fp, _sheet = _user_sheet_tmp()
+        workers = []
+        if fp:
+            dm, dy = G.data_month_year(fp)
+            workers = AI._all_workers(dm, dy, fp)
+    finally:
+        if fp:
+            try:
+                os.unlink(fp)
+            except Exception:
+                pass
+    seen, emps = set(), []
+    for w in workers:
+        key = w['name'].strip().lower()
+        if key and key not in seen:
+            seen.add(key)
+            emps.append({'name': w['name'], 'provider': w['provider'],
+                         'files': 0, 'size': 0})
+    return jsonify({'ok': True, 'employees': emps})
+
+
+@app.route('/api/ws/employee-files', methods=['GET'], strict_slashes=False)
+@login_required
+def employee_files():
+    # ক্লাউডে OneDrive/ড্রাইভ ফোল্ডার নেই — প্রতি-কর্মচারীর ডকুমেন্ট ফাইল এখনো নেই
+    return jsonify({'ok': True, 'files': []})
 
 
 # ---------------------------------------------------------------- কনফিগ সেভ
