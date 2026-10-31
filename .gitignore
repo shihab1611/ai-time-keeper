@@ -31,3 +31,25 @@ restart.log
 
 # রান-টাইম স্টেট (প্রতিবার বদলায়)
 extensions/backup_state.json
+
+# নিরাপত্তা: সিক্রেট ও ব্যক্তিগত ডেটা রিপোতে যাবে না (লোকাল ফাইল থাকবে)
+rclone.conf
+.users
+.env
+*.db
+*.log
+
+# লোকাল বট-স্টেট — ক্লাউডে দরকার নেই, ব্যক্তিগত ডেটা
+bot_memory.json
+cycle.json
+invoice_data.json
+labor_assign.json
+labor_phones.json
+profit_duty.json
+profit_exp.json
+profit_pay.json
+profit_rates.json
+profit_srates.json
+provider_config.json
+extensions/add_invoice_config.json
+extensions/backup_state.json
