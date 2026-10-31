@@ -1444,6 +1444,13 @@ def advance_import():
             return jsonify({'ok': False,
                             'error': 'শিটের ৪ নম্বর সারিতে "Name" হেডার পাওয়া যায়নি — আপনার বট-শিট কি এটা?'}), 400
         if replace:
+            # স্ন্যাপশট: replace-এর আগের অবস্থা সংরক্ষণ — ভুল হলে ফেরানোর পথ
+            _old = [{'person': e.person, 'amount': e.amount, 'status': e.status,
+                     'date': e.date, 'reason': e.reason}
+                    for e in AdvanceEntry.query.filter_by(user_id=current_user.id).all()]
+            set_user_config(current_user.id, 'advance_snapshot_last',
+                            json.dumps({'at': datetime.utcnow().isoformat(), 'rows': _old},
+                                       ensure_ascii=False))
             AdvanceEntry.query.filter_by(user_id=current_user.id).delete()
         imported, seen_people = 0, set()
         for (_nc, _ac, _dc, _sc, _rc) in blocks:
@@ -1543,6 +1550,18 @@ def labor_import():
     try:
         wb = load_workbook(tmp.name, data_only=True)
         if replace:
+            # স্ন্যাপশট: replace-এর আগের অবস্থা সংরক্ষণ — ভুল হলে ফেরানোর পথ
+            _old = []
+            for e in LaborDuty.query.filter_by(user_id=current_user.id).all():
+                try:
+                    _h = json.loads(e.history or '[]')
+                except Exception:
+                    _h = []
+                _old.append({'person': e.person, 'provider': e.provider, 'site': e.site,
+                             'start': e.start, 'rate': e.rate, 'off': e.off, 'history': _h})
+            set_user_config(current_user.id, 'labor_snapshot_last',
+                            json.dumps({'at': datetime.utcnow().isoformat(), 'rows': _old},
+                                       ensure_ascii=False))
             # নতুন ইনসার্টের আগেই পুরনো খাতা মুছতে হবে — নইলে replace-এ সব মুছে যায়
             LaborDuty.query.filter_by(user_id=current_user.id).delete()
             db.session.commit()
@@ -2056,6 +2075,24 @@ def provider_save():
     return jsonify({'ok': True, 'backup': 'ডেটাবেজ (স্থায়ী)'})
 
 
+@app.route('/api/ws/profit-import', methods=['POST'], strict_slashes=False)
+@login_required
+def profit_import():
+    """লোকাল বট থেকে profit-ডেটা (রেট/সাইট-রেট/ডিউটি/খরচ/পেমেন্ট) ক্লাউডে সিঙ্ক।"""
+    d = request.get_json() or {}
+    saved = []
+    for short, key, shape in (('rates', 'profit_rates', {}), ('srates', 'profit_srates', {}),
+                              ('duty', 'profit_duty', {}), ('exp', 'profit_exp', []),
+                              ('pay', 'profit_pay', {})):
+        if short in d:
+            v = d.get(short)
+            _pjson_save(key, v if isinstance(v, type(shape)) else shape)
+            saved.append(key)
+    if not saved:
+        return jsonify({'ok': False, 'error': 'rates/srates/duty/exp/pay — কিছুই পাওয়া যায়নি'}), 400
+    return jsonify({'ok': True, 'saved': saved, 'backup': 'ডেটাবেজ (স্থায়ী)'})
+
+
 # ---------------------------------------------------------------- Monthly Cycle টাইমলাইন
 @app.route('/api/cycle', methods=['GET'], strict_slashes=False)
 @login_required
@@ -2134,6 +2171,340 @@ def storage_info():
                     'checked_at': datetime.utcnow().isoformat() + 'Z'})
 
 
+# ---------------------------------------------------------------- লোকাল ↔ ক্লাউড সিঙ্ক (PIN-সুরক্ষিত, শুধু লোকাল পিসির বটে)
+def _is_local_instance():
+    return str(app.config.get('SQLALCHEMY_DATABASE_URI', '')).startswith('sqlite')
+
+
+def _sync_cfg_path():
+    return os.path.join(BASE, 'cloud_backup_config.json')
+
+
+def _sync_cfg():
+    p = _sync_cfg_path()
+    if not os.path.isfile(p):
+        return None
+    try:
+        with open(p, encoding='utf-8') as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+
+def _sync_cfg_save(cfg):
+    with open(_sync_cfg_path(), 'w', encoding='utf-8') as f:
+        json.dump(cfg, f, ensure_ascii=False, indent=1)
+
+
+_sync_fails, _sync_locks = {}, {}
+
+
+def _pin_gate(user_id, cfg, pin):
+    """PIN যাচাই — ৩ বার ভুলে ১০ মিনিট লক। রিটার্ন (ok, msg)।"""
+    import hashlib as _h
+    import hmac as _hm
+    now = time.time()
+    if now < _sync_locks.get(user_id, 0):
+        return False, '🔒 লক চলু — প্রায় %d মিনিট পরে আবার চেষ্টা করুন' % max(1, int((_sync_locks[user_id] - now) / 60))
+    want = str(cfg.get('pin_hash') or '')
+    salt = str(cfg.get('pin_salt') or '')
+    ok = bool(want) and _hm.compare_digest(
+        _h.sha256((salt + str(pin)).encode('utf-8')).hexdigest(), want)
+    if ok:
+        _sync_fails.pop(user_id, None)
+        return True, ''
+    f = _sync_fails.get(user_id, 0) + 1
+    _sync_fails[user_id] = f
+    if f >= 3:
+        _sync_locks[user_id] = now + 600
+        _sync_fails[user_id] = 0
+        return False, '৩ বার ভুল PIN — ১০ মিনিটের জন্য লক'
+    return False, 'ভুল PIN (%d/৩)' % f
+
+
+@app.route('/api/sync/status', methods=['GET'], strict_slashes=False)
+@login_required
+def sync_status():
+    cfg = _sync_cfg() or {}
+    return jsonify({'ok': True,
+                    'local': _is_local_instance(),
+                    'configured': bool(cfg.get('url') and cfg.get('email')),
+                    'cloud_url': cfg.get('url', ''),
+                    'pin_set': bool(cfg.get('pin_hash')),
+                    'locked': time.time() < _sync_locks.get(current_user.id, 0)})
+
+
+@app.route('/api/sync/pin', methods=['POST'], strict_slashes=False)
+@login_required
+def sync_pin_set():
+    if not _is_local_instance():
+        return jsonify({'ok': False, 'error': 'এটা শুধু লোকাল পিসির বটে চলে'}), 403
+    cfg = _sync_cfg()
+    if not cfg or not cfg.get('url'):
+        return jsonify({'ok': False, 'error': 'cloud_backup_config.json নেই — আগে ক্লাউড-তথ্য বসান'}), 400
+    pin = str((request.get_json() or {}).get('pin') or '').strip()
+    if not (pin.isdigit() and 4 <= len(pin) <= 8):
+        return jsonify({'ok': False, 'error': 'PIN হবে ৪-৮ ডিজিটের সংখ্যা'}), 400
+    import hashlib as _h
+    import secrets as _sc
+    cfg['pin_salt'] = _sc.token_hex(8)
+    cfg['pin_hash'] = _h.sha256((cfg['pin_salt'] + pin).encode('utf-8')).hexdigest()
+    _sync_cfg_save(cfg)
+    return jsonify({'ok': True})
+
+
+def _sync_cloud_opener(cfg):
+    import http.cookiejar as _cj
+    import urllib.request as _ur
+    cj = _cj.CookieJar()
+    op = _ur.build_opener(_ur.HTTPCookieProcessor(cj))
+    base = str(cfg['url']).rstrip('/')
+    req = _ur.Request(base + '/api/auth/login',
+                      data=json.dumps({'email': cfg.get('email'), 'password': cfg.get('password')}).encode('utf-8'),
+                      headers={'Content-Type': 'application/json'}, method='POST')
+    with op.open(req, timeout=180) as r:
+        body = json.loads(r.read().decode('utf-8'))
+    if not body.get('ok'):
+        raise ValueError('ক্লাউড লগইন ফেল: %s' % body.get('error'))
+    return op, base
+
+
+@app.route('/api/sync/pull', methods=['POST'], strict_slashes=False)
+@login_required
+def sync_pull():
+    """⬇️ ক্লাউড → লোকাল: ক্লাউডের ব্যাকআপ ZIP নামিয়ে লোকাল খাতায় বসানো।
+    আগের অবস্থা pull_snapshot_last-এ সংরক্ষিত থাকে।"""
+    if not _is_local_instance():
+        return jsonify({'ok': False, 'error': 'এটা শুধু লোকাল পিসির বটে চলে'}), 403
+    cfg = _sync_cfg()
+    if not cfg or not cfg.get('url'):
+        return jsonify({'ok': False, 'error': 'কনফিগ নেই'}), 400
+    pin = str((request.get_json() or {}).get('pin') or '').strip()
+    ok, msg = _pin_gate(current_user.id, cfg, pin)
+    if not ok:
+        return jsonify({'ok': False, 'error': msg}), 429 if 'লক' in msg else 401
+
+    import io as _io
+    import zipfile as _zf
+    op, base = _sync_cloud_opener(cfg)
+    with op.open(base + '/api/backup', timeout=900) as r:
+        data = r.read()
+    if not data.startswith(b'PK'):
+        return jsonify({'ok': False, 'error': 'ক্লাউড থেকে ZIP পাওয়া যায়নি'}), 502
+    z = _zf.ZipFile(_io.BytesIO(data))
+    names = z.namelist()
+
+    # লোকালের বর্তমান অবস্থার স্ন্যাপশট
+    _old_adv = [{'person': e.person, 'amount': e.amount, 'status': e.status,
+                 'date': e.date, 'reason': e.reason}
+                for e in AdvanceEntry.query.filter_by(user_id=current_user.id).all()]
+    _old_lab = [{'person': e.person, 'provider': e.provider, 'site': e.site,
+                 'start': e.start, 'rate': e.rate, 'off': e.off}
+                for e in LaborDuty.query.filter_by(user_id=current_user.id).all()]
+    set_user_config(current_user.id, 'pull_snapshot_last',
+                    json.dumps({'at': datetime.utcnow().isoformat(),
+                                'advance': _old_adv, 'labor': _old_lab}, ensure_ascii=False))
+
+    result = {}
+    if 'advance_entries.json' in names:
+        adv = json.loads(z.read('advance_entries.json'))
+        AdvanceEntry.query.filter_by(user_id=current_user.id).delete()
+        for a in adv:
+            db.session.add(AdvanceEntry(user_id=current_user.id, person=a.get('person', ''),
+                                        amount=a.get('amount') or 0, status=a.get('status') or '',
+                                        date=a.get('date') or '', reason=a.get('reason') or ''))
+        db.session.commit()
+        result['advance'] = len(adv)
+    if 'labor_duty.json' in names:
+        lab = json.loads(z.read('labor_duty.json'))
+        LaborDuty.query.filter_by(user_id=current_user.id).delete()
+        for e in lab:
+            db.session.add(LaborDuty(user_id=current_user.id, person=e.get('person', ''),
+                                     provider=e.get('provider', ''), site=e.get('site', ''),
+                                     start=e.get('start', ''), rate=e.get('rate'),
+                                     off=bool(e.get('off')),
+                                     history=json.dumps(e.get('history') or [], ensure_ascii=False)))
+        db.session.commit()
+        result['labor'] = len(lab)
+    added = 0
+    for n in names:
+        if n.startswith('data_sheets/'):
+            fn, blob = n.split('/', 1)[1], z.read(n)
+            same = [s for s in DataSheet.query.filter_by(user_id=current_user.id, filename=fn).all()
+                    if (s.file_bytes or b'') == blob]
+            if same:
+                continue
+            db.session.add(DataSheet(user_id=current_user.id, filename=fn, file_bytes=blob))
+            added += 1
+    db.session.commit()
+    result['sheets_added'] = added
+    if 'config_store.json' in names:
+        try:
+            cfgs = json.loads(z.read('config_store.json'))
+            merged = []
+            for k, v in (cfgs or {}).items():
+                if k == 'pull_snapshot_last' or not isinstance(v, (dict, list)):
+                    continue
+                set_user_config(current_user.id, k, json.dumps(v, ensure_ascii=False))
+                merged.append(k)
+            result['config_keys'] = merged
+        except Exception:
+            pass
+    added_ar = 0
+    for n in names:
+        if n.startswith('archives/'):
+            fn, blob = n.split('/', 1)[1], z.read(n)
+            same = [a for a in MonthArchive.query.filter_by(user_id=current_user.id, filename=fn).all()
+                    if (a.file_bytes or b'') == blob]
+            if same:
+                continue
+            _mm = re.search(r'(\d{1,2})-(\d{4})', fn)
+            _mo, _yr = (int(_mm.group(1)), int(_mm.group(2))) if _mm else (0, 0)
+            db.session.add(MonthArchive(user_id=current_user.id,
+                                        kind='total_sheet' if 'total' in fn.lower() else 'file',
+                                        month=_mo, year=_yr, filename=fn, file_bytes=blob))
+            added_ar += 1
+    db.session.commit()
+    result['archives_added'] = added_ar
+    result['snapshot'] = 'pull_snapshot_last — আগের অবস্থা সংরক্ষিত'
+    return jsonify({'ok': True, 'result': result})
+
+
+@app.route('/api/sync/push', methods=['POST'], strict_slashes=False)
+@login_required
+def sync_push():
+    """⬆️ লোকাল → ক্লাউড: লোকাল খাতার ডেটা ক্লাউডের ইমপোর্ট-এন্ডপয়েন্টে পাঠানো।
+    dry_run:true দিলে কী যাবে শুধু দেখায়, ক্লাউডে লেখে না।"""
+    if not _is_local_instance():
+        return jsonify({'ok': False, 'error': 'এটা শুধু লোকাল পিসির বটে চলে'}), 403
+    cfg = _sync_cfg()
+    if not cfg or not cfg.get('url'):
+        return jsonify({'ok': False, 'error': 'কনফিগ নেই'}), 400
+    body = request.get_json() or {}
+    pin = str(body.get('pin') or '').strip()
+    ok, msg = _pin_gate(current_user.id, cfg, pin)
+    if not ok:
+        return jsonify({'ok': False, 'error': msg}), 429 if 'লক' in msg else 401
+    dry = bool(body.get('dry_run'))
+    import urllib.request as _ur
+
+    adv = [{'person': e.person, 'amount': e.amount, 'status': e.status,
+            'date': e.date, 'reason': e.reason}
+           for e in _advance_rows(current_user.id)]
+    lab = []
+    for e in LaborDuty.query.filter_by(user_id=current_user.id).all():
+        try:
+            hist = json.loads(e.history or '[]')
+        except Exception:
+            hist = []
+        lab.append({'person': e.person, 'provider': e.provider, 'site': e.site,
+                    'start': e.start, 'rate': e.rate, 'off': e.off, 'history': hist})
+    profit = {'rates': _pjson('profit_rates', {}), 'srates': _pjson('profit_srates', {}),
+              'duty': _pjson('profit_duty', {}), 'exp': _pjson('profit_exp', []),
+              'pay': _pjson('profit_pay', {})}
+    sheets = DataSheet.query.filter_by(user_id=current_user.id) \
+        .order_by(DataSheet.created_at.desc()).all()
+    ds = next((s for s in sheets if 'data sheet' in (s.filename or '').lower()), None)
+    would = {'advance': len(adv), 'labor': len(lab),
+             'data_sheet': ds.filename if ds else None,
+             'profit_keys': [k for k, v in profit.items() if v]}
+
+    if dry:
+        return jsonify({'ok': True, 'dry_run': True, 'would_push': would})
+
+    if not adv and not lab and not ds:
+        return jsonify({'ok': False, 'error': 'লোকালে পাঠানোর মতো কিছু নেই'}), 400
+
+    op, base = _sync_cloud_opener(cfg)
+    pushed = {}
+
+    def _mpost(path, filefield, filename, blob, extra=None):
+        import uuid as _uu
+        bnd = '----atk' + _uu.uuid4().hex
+        parts = []
+        for k, v in (extra or {}).items():
+            parts.append(('--' + bnd, 'Content-Disposition: form-data; name="%s"' % k, '', str(v)))
+        parts.append(('--' + bnd,
+                      'Content-Disposition: form-data; name="%s"; filename="%s"' % (filefield, filename),
+                      'Content-Type: application/octet-stream', None))
+        bodyb = b''
+        for bndline, hdr, ctype, val in parts:
+            bodyb += (bndline + '\r\n' + hdr + '\r\n' +
+                      (('Content-Type: ' + ctype + '\r\n\r\n') if ctype else '\r\n')).encode('utf-8')
+            if val is not None:
+                bodyb += str(val).encode('utf-8')
+            else:
+                bodyb += blob + b'\r\n'
+        bodyb += ('--' + bnd + '--\r\n').encode('utf-8')
+        req = _ur.Request(base + path, data=bodyb, headers={
+            'Content-Type': 'multipart/form-data; boundary=' + bnd}, method='POST')
+        with op.open(req, timeout=600) as r:
+            return json.loads(r.read().decode('utf-8'))
+
+    def _jpost(path, payload):
+        req = _ur.Request(base + path, data=json.dumps(payload, ensure_ascii=False).encode('utf-8'),
+                          headers={'Content-Type': 'application/json'}, method='POST')
+        with op.open(req, timeout=600) as r:
+            return json.loads(r.read().decode('utf-8'))
+
+    # ১. অগ্রিম — ইমপোর্ট-লেআউটের xlsx বানিয়ে replace=1
+    if adv:
+        from openpyxl import Workbook as _WB
+        from io import BytesIO as _BIO
+        wb = _WB(); ws = wb.active
+        for col, h in enumerate(('Name', 'Amount', 'Date', 'Status', 'Reason'), 1):
+            ws.cell(4, col, h)
+        rr = 5
+        for a in adv:
+            ws.cell(rr, 1, a['person']); ws.cell(rr, 2, a['amount'])
+            ws.cell(rr, 3, a['date']); ws.cell(rr, 4, a['status']); ws.cell(rr, 5, a['reason'])
+            rr += 1
+        buf = _BIO(); wb.save(buf)
+        r1 = _mpost('/api/ws/advance-import', 'file', 'sync-advance.xlsx', buf.getvalue(), {'replace': '1'})
+        pushed['advance'] = r1
+    # ২. লেবার — একই কায়দায় (provider row-2-তে, headers row-4)
+    if lab:
+        from openpyxl import Workbook as _WB
+        from io import BytesIO as _BIO
+        wb = _WB(); ws = wb.active
+        prov = lab[0].get('provider') or 'প্রোভাইডার'
+        ws.cell(2, 1, prov)
+        for col, h in enumerate(('Name', 'duty St Date', 'Buy of Per Hour', 'Duty now Running Comp or'), 1):
+            ws.cell(4, col, h)
+        rr = 5
+        for e in lab:
+            ws.cell(rr, 1, e['person']); ws.cell(rr, 2, e['start'])
+            ws.cell(rr, 3, e['rate']); ws.cell(rr, 4, e['site']); rr += 1
+        buf = _BIO(); wb.save(buf)
+        r2 = _mpost('/api/ws/labor-import', 'file', 'sync-labor.xlsx', buf.getvalue(), {'replace': '1'})
+        pushed['labor'] = r2
+    # ৩. ডাটা শিট (ক্লাউডে একই নাম+সাইজ থাকলে স্কিপ)
+    if ds and ds.file_bytes:
+        import urllib.request as _ur
+        req = _ur.Request(base + '/api/files', method='GET')
+        with op.open(req, timeout=300) as r:
+            cloud_files = json.loads(r.read().decode('utf-8')).get('files', [])
+        same = any(f.get('name') == ds.filename and (f.get('size') or 0) == len(ds.file_bytes)
+                   for f in cloud_files)
+        if not same:
+            bnd = '----atk' + __import__('uuid').uuid4().hex
+            pre = ('--' + bnd + '\r\nContent-Disposition: form-data; name="file"; filename="' +
+                   ds.filename + '"\r\nContent-Type: application/octet-stream\r\n\r\n').encode('utf-8')
+            bodyb = pre + ds.file_bytes + ('\r\n--' + bnd + '--\r\n').encode('utf-8')
+            req = _ur.Request(base + '/api/upload-excel', data=bodyb, headers={
+                'Content-Type': 'multipart/form-data; boundary=' + bnd}, method='POST')
+            with op.open(req, timeout=600) as r:
+                pushed['data_sheet'] = json.loads(r.read().decode('utf-8'))
+        else:
+            pushed['data_sheet'] = {'ok': True, 'skipped': 'ক্লাউডে একই শিট আছে'}
+    # ৪. profit ডেটা
+    if any(profit.values()):
+        pushed['profit'] = _jpost('/api/ws/profit-import', profit)
+
+    bad = {k: v for k, v in pushed.items() if isinstance(v, dict) and v.get('ok') is False}
+    return jsonify({'ok': not bad, 'pushed': pushed, 'errors': bad})
+
+
 # ---------------------------------------------------------------- কনফিগ সেভ
 @app.route('/api/ws/add-invoice-config', methods=['POST'], strict_slashes=False)
 @login_required
@@ -2190,8 +2561,13 @@ def month_clear_route():
             tmp_tmpl.close()
 
     try:
+        # আর্কাইভে আসল ফাইলনাম থাকুক — টেম্প-নাম (tmpXXXX.xlsx) নয়
+        real_dir = tempfile.mkdtemp(prefix='atkclear_')
+        real_data = os.path.join(real_dir, os.path.basename(sheet.filename or 'data sheet.xlsx'))
+        shutil.copyfile(tmp_data.name, real_data)
+
         result = M.month_clear(
-            tmp_data.name,
+            real_data,
             tmp_tmpl.name if tmp_tmpl else None,
             month, year,
             do_generate=True,

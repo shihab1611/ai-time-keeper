@@ -1,6 +1,6 @@
 /* Company Workspace — separate from Time Keeper */
 const esc=s=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-function wtab(n){[0,1,2,3,4,5,6,7,8,9].forEach(i=>{document.getElementById('ws'+i).style.display=i===n?'':'none';document.getElementById('w'+i).className=i===n?'on':''});if(n===0&&typeof loadDash==='function')loadDash();if(n===0&&typeof loadCharts==='function')loadCharts();if(n===1)loadEmp();if(n===2)loadAdv();if(n===3){if(typeof loadInvoice==='function')try{loadInvoice()}catch(e){};if(typeof igenLoad==='function')try{igenLoad()}catch(e){};if(typeof cinvLoad==='function')try{cinvLoad()}catch(e){};setTimeout(function(){const c=document.getElementById('addinvChat');if(c&&!c.dataset.started){c.dataset.started='1';if(typeof aiwWizardStart==='function')aiwWizardStart()}},300)};if(n===6||n===7){loadLabor();loadPhones()}if(n===8)loadProfit();if(n===9){try{wsBuildThemeGrid();wsPaintThemeGrid();wsApplySetLang();WUI.count()}catch(e){}loadStorage()}try{history.replaceState(null,'','#ws'+n)}catch(e){}}
+function wtab(n){[0,1,2,3,4,5,6,7,8,9].forEach(i=>{document.getElementById('ws'+i).style.display=i===n?'':'none';document.getElementById('w'+i).className=i===n?'on':''});if(n===0&&typeof loadDash==='function')loadDash();if(n===0&&typeof loadCharts==='function')loadCharts();if(n===1)loadEmp();if(n===2)loadAdv();if(n===3){if(typeof loadInvoice==='function')try{loadInvoice()}catch(e){};if(typeof igenLoad==='function')try{igenLoad()}catch(e){};if(typeof cinvLoad==='function')try{cinvLoad()}catch(e){};setTimeout(function(){const c=document.getElementById('addinvChat');if(c&&!c.dataset.started){c.dataset.started='1';if(typeof aiwWizardStart==='function')aiwWizardStart()}},300)};if(n===6||n===7){loadLabor();loadPhones()}if(n===8)loadProfit();if(n===9){try{wsBuildThemeGrid();wsPaintThemeGrid();wsApplySetLang();WUI.count()}catch(e){}loadStorage();if(typeof syncStatus==='function')syncStatus()}try{history.replaceState(null,'','#ws'+n)}catch(e){}}
 function fmtSize(n){if(n==null)return '—';if(n<1024)return n+' B';if(n<1048576)return (n/1024).toFixed(1)+' KB';if(n<1073741824)return (n/1048576).toFixed(1)+' MB';return (n/1073741824).toFixed(2)+' GB'}
 let EMPS=[];
 async function loadEmp(){
@@ -730,6 +730,48 @@ async function loadStorage(){
   const k=j.counts||{};
   if(cn)cn.innerHTML='📊 আপনার হিসাব: 📄 শিট '+k.sheets+' • 🧾 ইনভয়েস '+k.invoices+' • 🗄️ আর্কাইভ '+k.archives+' • 💰 অগ্রিম-এন্ট্রি '+k.advance+' • 🧷 লেবার '+k.labor+' • ⚙️ কনফিগ '+k.config+'<br><span class="hint">অ্যাকাউন্ট: '+esc(j.account||'')+'</span>';
  }catch(e){const t=document.getElementById('stTables');if(t)t.textContent='❌ '+esc(e)}
+}
+/* ---- ক্লাউড সিঙ্ক (লোকাল ↔ ক্লাউড) — PIN-সুরক্ষিত ---- */
+let SYNC={local:false,pin_set:false,configured:false,locked:false};
+async function syncStatus(){
+ try{
+  const r=await fetch('/api/sync/status');const j=await r.json();
+  if(!j.ok)throw j.error||'failed';
+  SYNC=j;
+  const h=document.getElementById('syncHint'),b=document.getElementById('syncBody');
+  if(!j.local){h.innerHTML='🏢 এটা <b>ক্লাউড সার্ভার</b> — সিঙ্ক চালাতে হবে লোকাল পিসির বটের Settings থেকে।';if(b)b.style.display='none';return}
+  if(!j.configured){h.innerHTML='❌ cloud_backup_config.json পাওয়া যায়নি — আগে ক্লাউড-তথ্য বসান।';if(b)b.style.display='none';return}
+  h.innerHTML='✅ লোকাল বট ↔ ক্লাউড ('+esc(j.cloud_url)+') — PIN '+(j.pin_set?'সেট করা আছে ✅':'<b>সেট করা নেই</b> — আগে ৭-৮ ডিজিটের PIN দিন');
+  if(b)b.style.display='';
+  if(j.locked){const m=document.getElementById('syncMsg');if(m)m.textContent='🔒 অনেকবার ভুল PIN — ৮ মিনিট লক';}
+ }catch(e){const h=document.getElementById('syncHint');if(h)h.textContent='❌ '+esc(e)}
+}
+async function syncPinSet(){
+ const p=document.getElementById('syncPin').value.trim();
+ const m=document.getElementById('syncMsg');
+ try{
+  const r=await fetch('/api/sync/pin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin:p})});
+  const j=await r.json();
+  if(!j.ok)throw j.error||'failed';
+  if(m)m.textContent='✅ PIN সেট হয়েছে — এখন সিঙ্ক চালাতে পারেন';
+  syncStatus();
+ }catch(e){if(m)m.textContent='❌ '+esc(e)}
+}
+async function syncDo(dir){
+ const pin=document.getElementById('syncPin').value.trim();
+ const m=document.getElementById('syncMsg');
+ if(!pin){if(m)m.textContent='⚠️ আগে PIN লিখুন';return}
+ if(dir==='pull'&&!confirm('ক্লাউডের ডেটা লোকাল খাতায় বসবে। আপনার আসের লোকাল ডেটার স্ন্যাপশট সংরক্ষিত থাকবে। চালাবেন?'))return;
+ if(m)m.textContent='⏳ সিঙ্ক হচ্ছে… কয়েক সেকেন্ড লাগতে পারে';
+ try{
+  const dry=(dir==='push'&&document.getElementById('syncDry')&&document.getElementById('syncDry').checked)?true:undefined;
+  const r=await fetch('/api/sync/'+dir,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(dry?{pin:pin,dry_run:true}:{pin:pin})});
+  const j=await r.json();
+  if(!j.ok)throw j.error||'failed';
+  if(j.dry_run){if(m)m.textContent='👁️ dry-run — যা যা ক্লাউডে যাবে: '+esc(JSON.stringify(j.would_push));return}
+  if(m)m.textContent='✅ সিঙ্ক সফল: '+esc(JSON.stringify(j.result||j.pushed)).slice(0,300);
+  if(dir==='pull'){loadAdv();loadLabor();loadStorage()}
+ }catch(e){if(m)m.textContent='❌ '+esc(e)}
 }
 function advForm(i){
  const d=document.getElementById('af'+i);

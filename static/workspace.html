@@ -1678,6 +1678,23 @@ body[data-theme="paper"].themeFade::after{
 <div id="stCounts" style="margin-top:10px"></div>
 <div class="hint" id="stNote">সীমা ছুঁতে চাইলে নতুন লেখা থেমে যাবে (কিছু মোছা হয় না) — তখন আমাকে জানাবেন।</div>
 </div>
+
+<div class="card" id="wsSyncCard">
+<h2 id="wsSyncTitle">🔄 ক্লাউড সিঙ্ক — লোকাল ↔ ক্লাউড</h2>
+<div class="hint" id="syncHint">লোড হচ্ছে…</div>
+<div id="syncBody" style="display:none">
+ <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0">
+  <input id="syncPin" type="password" inputmode="numeric" placeholder="PIN (৪-৮ ডিজিট)" maxlength="8" style="max-width:180px">
+  <button class="ghost" onclick="syncPinSet()">🔑 PIN সেট</button>
+ </div>
+ <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;align-items:center">
+  <button class="ghost" style="border-color:rgba(74,222,128,.6)" onclick="syncDo('pull')">⬇️ ক্লাউড → লোকাল</button>
+  <button class="ghost" style="border-color:rgba(251,191,36,.6)" onclick="syncDo('push')">⬆️ লোকাল → ক্লাউড</button>
+  <label class="hint" style="display:inline-flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="syncDry"> শুধু দেখো (dry-run)</label>
+ </div>
+ <div class="hint" id="syncMsg">⬇️ Pull = ক্লাউডের খাতা পিসিতে বসবে • ⬆️ Push = পিসির খাতা ক্লাউডে যাবে (ক্লাউডের পুরনো অবস্থার স্ন্যাপশট সংরক্ষিত থাকবে) • PIN ছাড়া কিছুই চলবে না</div>
+</div>
+</div>
 </div>
 
 <footer>Company Workspace • Local only • Time Keeper থেকে আলাদা সেকশন</footer>
