@@ -1719,6 +1719,11 @@ def index():
     return send_from_directory(app.static_folder, 'workspace.html')
 
 
+@app.route('/login', methods=['GET'])
+def login_page():
+    return send_from_directory(app.static_folder, 'login.html')
+
+
 @app.route('/workspace', methods=['GET'])
 def workspace():
     return send_from_directory(app.static_folder, 'workspace.html')

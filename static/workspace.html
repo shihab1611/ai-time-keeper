@@ -4,6 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Company Workspace</title>
+<script>
+/* লগইন-গেট: লগইন না থাকলে পাতা আঁকার আগেই লক-স্ক্রিনে পাঠাও */
+(function(){try{var x=new XMLHttpRequest();x.open('GET','/api/auth/me',false);x.send();
+if(x.status!==200){location.replace('/login');}}catch(e){location.replace('/login');}})();
+</script>
 <style>
 :root{--txt:#f2f0ff;--mut:#cfc6f5;--acc:#7dd3fc;--ok:#4ade80}
 *{box-sizing:border-box}
