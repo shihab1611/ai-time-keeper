@@ -299,11 +299,13 @@ def amount_words(x):
 
 # ---------------------------------------------------------------- invoice builder
 def build_invoice(prov_key, month=None, year=None, rates=None, adv=None, gas=None,
-                  client=None, address=None, fp=None, assigned_no=None, cfg=None):
+                  client=None, address=None, fp=None, assigned_no=None, cfg=None,
+                  adv_people=None, adv_order=None):
     """rates: {worker_name: new_rate}; adv/gas: manual totals (None=auto)।
     client/address: স্টেটমেন্টের PAY TO — UI থেকে এডিট করা ভ্যালু (None=ডিফল্ট)।
     fp: ডাটা শিটের পাথ (ক্লাউডে DB বাইটসের টেম্প ফাইল); assigned_no: DB-ভিত্তিক ইনভয়েস নম্বর;
-    cfg: কলারের দেওয়া কনফিগ (None=ফাইল থেকে)।"""
+    cfg: কলারের দেওয়া কনফিগ (None=ফাইল থেকে);
+    adv_people/adv_order: কলারের দেওয়া অগ্রিম-লেজার (ক্লাউডে DB থেকে; None=লোকাল ফাইল থেকে)।"""
     cfg = cfg or load_cfg()
     settings = cfg.get("settings", {})
     company = cfg.get("company", {})
@@ -346,7 +348,10 @@ def build_invoice(prov_key, month=None, year=None, rates=None, adv=None, gas=Non
         raise ValueError("Data sheet-এ এই প্রোভাইডারের নাম পাওয়া যায়নি: " + str(prov_key))
 
     workers_raw = prov_workers.get(ds_name, [])
-    people, _ = read_advance()
+    if adv_people is None:
+        people, _ = read_advance()
+    else:
+        people = adv_people   # order কলারের কাছেই থাকুক — এখানে শুধু people লাগে
     adv_src = settings.get("advance_source", "balance")
 
     workers = []
