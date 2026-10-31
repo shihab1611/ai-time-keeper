@@ -158,6 +158,22 @@ class AdvanceEntry(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
+class LaborDuty(db.Model):
+    """লেবার-শিটের ক্লাউড-সমতুল্য — কে কোন প্রোভাইডারে, কোন সাইটে, রেট/শুরু-তারিখ/বন্ধ + ডিউটি-হিস্ট্রি।
+    লোকালের 'working in company Manpower 2 বট.xlsx'-এর ক্লাউড-সমতুল্য (হিস্ট্রি ছিল ঘরের কমেন্টে)।"""
+    __tablename__ = 'labor_duty'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    person = db.Column(db.String(120), nullable=False, index=True)
+    provider = db.Column(db.String(120), default='')
+    site = db.Column(db.String(120), default='')
+    start = db.Column(db.String(20), default='')
+    rate = db.Column(db.Float, nullable=True)
+    off = db.Column(db.Boolean, default=False)
+    history = db.Column(db.Text, default='[]')
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
@@ -473,11 +489,49 @@ def months():
 @app.route('/api/ws/labor-refresh', methods=['GET'], strict_slashes=False)
 @login_required
 def labor():
-    """আপলোড করা ডাটা শিট থেকে আসল ঘণ্টা/রেট; ইউজারের বসানো অ্যাসাইনমেন্ট থাকলে সেই প্রোভাইডার।"""
+    """Labor Running Duty — LaborDuty খাতা থাকলে সেখান থেকে (ক্লাউড-লেজার);
+    না থাকলে পুরনো ফলব্যাক: ডাটা শিটের ওয়ার্কার + ম্যানুয়াল অ্যাসাইনমেন্ট।"""
+    rows = LaborDuty.query.filter_by(user_id=current_user.id) \
+        .order_by(LaborDuty.provider, LaborDuty.id).all()
+    if rows:
+        assigns = _labor_index_map(current_user.id)
+        provs, order = {}, []
+        for e in rows:
+            p = e.provider or '(প্রোভাইডার নেই)'
+            if p not in provs:
+                provs[p] = {'provider': p, 'workers': [], 'onDuty': 0, 'off': 0}
+                order.append(p)
+            try:
+                hist = json.loads(e.history or '[]')
+            except Exception:
+                hist = []
+            b = provs[p]
+            b['workers'].append({
+                'name': e.person, 'provider': p, 'site': '' if e.off else (e.site or ''),
+                'start': e.start or '', 'rate': e.rate, 'off': bool(e.off),
+                'history': hist,
+            })
+        for p in order:
+            b = provs[p]
+            for w in b['workers']:
+                mp = assigns.get(G.norm_person(w['name']))
+                if mp and mp != p:
+                    w['provider'] = mp
+                    w['manual'] = True
+            b['onDuty'] = sum(1 for w in b['workers'] if not w['off'])
+            b['off'] = sum(1 for w in b['workers'] if w['off'])
+        for bi, p in enumerate(order):
+            for wi, w in enumerate(provs[p]['workers']):
+                w['col'] = bi * 5 + 2
+                w['row'] = 5 + wi
+        return jsonify({'ok': True, 'providers': [provs[p] for p in order],
+                        'file': 'ক্লাউড খাতা (ডেটাবেজ)', 'total': len(rows)})
+
+    # ---- ফলব্যাক: LaborDuty খালি — ডাটা শিটের ওয়ার্কার থেকে ----
     fp = None
-    rows = []
     try:
         fp, _sheet = _user_sheet_tmp()
+        rows = []
         if fp:
             dm, dy = G.data_month_year(fp)
             rows = AI._all_workers(dm, dy, fp)
@@ -1260,6 +1314,11 @@ def _db_advance_people():
     return people, order
 
 
+def _labor_provider_map():
+    """অগ্রিম-খাতার প্রোভাইডার-ম্যাপিং: LaborDuty আগে, ম্যানুয়াল LaborAssign জিতে যায়।"""
+    return _labor_index_map(current_user.id)
+
+
 @app.route('/api/ws/advance', methods=['GET'], strict_slashes=False)
 @login_required
 def advance_get():
@@ -1282,8 +1341,7 @@ def advance_get():
             p['paid'] += amt
         else:
             p['balance'] += amt
-    assigns = {G.norm_person(a.person): a.provider for a in
-               LaborAssign.query.filter_by(user_id=current_user.id).all()}
+    assigns = _labor_provider_map()
     for key in order:
         b = people[key]
         b['provider'] = assigns.get(G.norm_person(b['name']))
@@ -1449,6 +1507,171 @@ def advance_export():
                     headers={'Content-Disposition':
                              "attachment; filename=\"advance-sheet-cloud.xlsx\"; "
                              "filename*=UTF-8''" + quote(fname)})
+
+
+# ---------------------------------------------------------------- লেবার/ডিউটি (Labor Running Duty)
+DUTY_OFF_WORDS = ("duty off", "end", "off", "duty end")
+
+
+def _labor_index_map(user_id):
+    """person-normkey → provider: LaborDuty আগে, তারপর ম্যানুয়াল LaborAssign (জিতে যায়)।"""
+    idx = {}
+    for e in LaborDuty.query.filter_by(user_id=user_id).all():
+        k = G.norm_person(e.person)
+        if k and e.provider:
+            idx.setdefault(k, e.provider)
+    for a in LaborAssign.query.filter_by(user_id=user_id).all():
+        k = G.norm_person(a.person)
+        if k and a.provider:
+            idx[k] = a.provider
+    return idx
+
+
+@app.route('/api/ws/labor-import', methods=['POST'], strict_slashes=False)
+@login_required
+def labor_import():
+    """'working in company Manpower 2 বট.xlsx' ইমপোর্ট — প্রোভাইডার-ব্লক (row-2 নাম, row-4
+    'name' হেডার), ডিউটি-হিস্ট্রি ঘরের কমেন্ট থেকে। replace=1 দিলে আগের খাতা মুছে নতুন করে।"""
+    f = request.files.get('file')
+    if not f or not (f.filename or '').lower().endswith(('.xlsx', '.xlsm')):
+        return jsonify({'ok': False, 'error': '.xlsx ফাইল দিন'}), 400
+    replace = request.form.get('replace') == '1'
+    from openpyxl import load_workbook
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx')
+    tmp.write(f.read())
+    tmp.close()
+    try:
+        wb = load_workbook(tmp.name, data_only=True)
+        if replace:
+            # নতুন ইনসার্টের আগেই পুরনো খাতা মুছতে হবে — নইলে replace-এ সব মুছে যায়
+            LaborDuty.query.filter_by(user_id=current_user.id).delete()
+            db.session.commit()
+        imported, prov_order, provs = 0, [], {}
+        for ws in wb.worksheets:
+            for c in range(1, (ws.max_column or 0) + 1):
+                if ' '.join(str(ws.cell(4, c).value or '').split()).lower() != 'name':
+                    continue
+                prov = ' '.join(str(ws.cell(2, c).value or '').split()) or '(প্রোভাইডারের নাম লেখা নেই)'
+                if prov not in provs:
+                    provs[prov] = True
+                    prov_order.append(prov)
+
+                for r in range(5, (ws.max_row or 0) + 1):
+                    name = ' '.join(str(ws.cell(r, c).value or '').split())
+                    if not name:
+                        continue
+                    low = name.lower()
+                    if low.startswith('total') or low.startswith('grand balance'):
+                        continue
+
+                    def _cmt(rr, cc):
+                        try:
+                            cm = ws.cell(rr, cc).comment
+                        except Exception:
+                            return ''
+                        if cm and cm.text and cm.text.strip():
+                            return ' '.join(cm.text.split())
+                        return ''
+
+                    hist = []
+                    for t in (_cmt(r, c), _cmt(r, c + 1), _cmt(r, c + 3)):
+                        if t and t not in hist:
+                            hist.append(t)
+                    site = ' '.join(str(ws.cell(r, c + 3).value or '').split())
+                    off = bool(site) and site.lower() in DUTY_OFF_WORDS
+                    try:
+                        rate = float(ws.cell(r, c + 2).value) if ws.cell(r, c + 2).value not in (None, '') else None
+                    except (TypeError, ValueError):
+                        rate = None
+                    stv = ws.cell(r, c + 1).value
+                    start = stv.strftime('%Y-%m-%d') if hasattr(stv, 'strftime') \
+                        else ' '.join(str(stv or '').split())[:20]
+                    db.session.add(LaborDuty(user_id=current_user.id, person=name, provider=prov,
+                                             site='' if off else site, start=start, rate=rate,
+                                             off=off, history=json.dumps(hist, ensure_ascii=False)))
+                    imported += 1
+        db.session.commit()
+        return jsonify({'ok': True, 'imported': imported, 'providers': len(prov_order)})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+    finally:
+        try:
+            os.unlink(tmp.name)
+        except Exception:
+            pass
+
+
+@app.route('/api/ws/labor-save', methods=['POST'], strict_slashes=False)
+@login_required
+def labor_save():
+    d = request.get_json() or {}
+    act = str(d.get('act') or 'add')
+    vals = d.get('values') if isinstance(d.get('values'), dict) else d
+    person = ' '.join(str(vals.get('name') or vals.get('person') or '').split())
+    provider = ' '.join(str(vals.get('provider') or d.get('provider') or '').split())
+    site = ' '.join(str(vals.get('site') or '').split())
+    start = str(vals.get('start') or '').strip()[:20]
+    try:
+        rate = float(str(vals.get('rate') or '').replace(',', '')) if vals.get('rate') not in (None, '') else None
+    except (TypeError, ValueError):
+        rate = None
+    off = bool(site) and site.lower() in DUTY_OFF_WORDS
+
+    rows = LaborDuty.query.filter_by(user_id=current_user.id).all()
+    row = next((e for e in rows if G.norm_person(e.person) == G.norm_person(person)), None) if person else None
+
+    if act == 'comment':
+        cmt = ' '.join(str(d.get('comment') or d.get('siteComment') or '').split())
+        if row and cmt:
+            try:
+                hist = json.loads(row.history or '[]')
+            except Exception:
+                hist = []
+            if cmt not in hist:
+                hist.append(cmt)
+                row.history = json.dumps(hist, ensure_ascii=False)
+                db.session.commit()
+        return jsonify({'ok': True})
+
+    if act == 'del':
+        if row:
+            db.session.delete(row)
+            db.session.commit()
+        return jsonify({'ok': True})
+
+    if act in ('end', 'off'):
+        if row:
+            row.off = True
+            row.site = ''
+            db.session.commit()
+        return jsonify({'ok': True})
+
+    if not person:
+        return jsonify({'ok': False, 'error': 'নাম দিন'}), 400
+
+    if act == 'edit' and row:
+        row.site = '' if off else site
+        row.off = off
+        if start:
+            row.start = start
+        if rate is not None:
+            row.rate = rate
+        if provider:
+            row.provider = provider
+    else:
+        db.session.add(LaborDuty(user_id=current_user.id, person=person, provider=provider,
+                                 site='' if off else site, start=start, rate=rate, off=off))
+    for cmt in (str(d.get('comment') or '').strip(), str(d.get('siteComment') or '').strip()):
+        if row and cmt:
+            try:
+                hist = json.loads(row.history or '[]')
+            except Exception:
+                hist = []
+            if cmt not in hist:
+                hist.append(cmt)
+                row.history = json.dumps(hist, ensure_ascii=False)
+    db.session.commit()
+    return jsonify({'ok': True})
 
 
 # ---------------------------------------------------------------- মাস-আর্কাইভ (হিস্ট্রি)

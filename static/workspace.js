@@ -366,6 +366,20 @@ function waMsgSend(){
 
 /* ---------------- লোক ও সাইট (duty sheet) ---------------- */
 let LABOR={providers:[]};
+async function laborImport(inp){
+ if(!inp.files||!inp.files[0])return;
+ const fd=new FormData();
+ fd.append('file',inp.files[0]);
+ fd.append('replace',document.getElementById('labImportReplace').checked?'1':'0');
+ try{
+  const r=await fetch('/api/ws/labor-import',{method:'POST',body:fd});
+  const j=await r.json();
+  if(!j.ok)throw j.error||'failed';
+  alert('✅ ইমপোর্ট হয়েছে: '+j.imported+' জন, '+j.providers+' প্রোভাইডার');
+  inp.value='';
+  loadLabor();
+ }catch(e){alert('❌ '+esc(e))}
+}
 async function loadLabor(){
  const box=document.getElementById('labList');
  if(box)box.innerHTML='<div class="hint">লোড হচ্ছে…</div>';

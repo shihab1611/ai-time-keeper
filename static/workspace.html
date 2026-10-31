@@ -1429,9 +1429,12 @@ body[data-theme="paper"].themeFade::after{
 </div></div>
 <div id="ws6" style="display:none"><div class="card">
 <h2>👷 লোক ও সাইট
-<span class="badge" style="background:rgba(74,222,128,.25);border-color:rgba(74,222,128,.55)">📄 বট কপি</span>
-<button class="ghost" style="margin-left:10px;padding:5px 12px" onclick="laborRefreshFromMaster()" title="আপনার মাস্টার এক্সেল থেকে বট কপি নতুন করে নিন">🔄 মাস্টার থেকে নাও</button></h2>
-<div class="hint">📂 উৎস: <b>working in company Manpower 2 বট.xlsx</b> — আপনার মাস্টার ফাইলে বট কোনো লেখা করে না। ডিউটির ইতিহাস Excel-এর লাল ত্রিভূজ (কমেন্ট) থেকে আসে।</div>
+<span class="badge" style="background:rgba(74,222,128,.25);border-color:rgba(74,222,128,.55)">☁️ ক্লাউড খাতা</span>
+<span class="fwrap"><button class="ghost" style="padding:5px 12px" onclick="document.getElementById('labImportFile').click()">📥 শিট ইমপোর্ট</button>
+<input type="file" id="labImportFile" accept=".xlsx,.xlsm" style="display:none" onchange="laborImport(this)">
+<label class="hint" style="display:inline-flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="labImportReplace"> আগেরটা মুছে নতুন করে</label>
+<button class="ghost" style="padding:5px 12px" onclick="loadLabor()">🔄 রিফ্রেশ</button></span></h2>
+<div class="hint">📂 ক্লাউড খাতাটা ডেটাবেজে স্থায়ী — পুরনো <b>working in company Manpower 2 বট.xlsx</b> ইমপোর্ট করলে সব লোক/সাইট/রেট এবং ডিউটি-হিস্ট্রি (কমেন্ট) এখানে চলে আসবে।</div>
 <div class="roster" id="labRoster"></div>
 <div class="bigadd">
 <button class="ghost" style="margin:0;padding:8px 14px" onclick="labAdd()">➕ লোক যোগ করুন / নতুন প্রোভাইডার</button>
