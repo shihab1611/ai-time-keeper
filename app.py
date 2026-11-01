@@ -1630,8 +1630,657 @@ def advance_export():
 
 
 # ---------------------------------------------------------------- ক্লাউড মেমোরি (স্টোরেজ-হিসাব)
+DUTY_OFF_WORDS = ("duty off", "end", "off", "duty end")
+
+
+def norm_person(s):
+    """লেবার-খাতার নাম-কি (LOCKED ইঞ্জিনের নিয়ম): ব্র্যাকেট/md-প্রিফিক্স বাদ, শুধু অক্ষর।"""
+    import re as _re
+    t = _re.sub(r"\s*\(.*", "", str(s or ""))
+    t = _re.sub(r"^(md|mohammad)\s+", "", t.strip(), flags=_re.I)
+    return _re.sub(r"[^a-z]", "", t.lower())
+
+
+@app.route('/api/ws/labor-import', methods=['POST'], strict_slashes=False)
+@login_required
+def labor_import():
+    """'working in company Manpower 2 বট.xlsx' ইমপোর্ট — প্রোভাইডার-ব্লক (row-2 নাম, row-4
+    'name' হেডার), ডিউটি-হিস্ট্রি ঘরের কমেন্ট থেকে। replace=1 দিলে আগের খাতা মুছে নতুন করে।"""
+    f = request.files.get('file')
+    if not f or not (f.filename or '').lower().endswith(('.xlsx', '.xlsm')):
+        return jsonify({'ok': False, 'error': '.xlsx ফাইল দিন'}), 400
+    replace = request.form.get('replace') == '1'
+    from openpyxl import load_workbook
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx')
+    tmp.write(f.read())
+    tmp.close()
+    try:
+        wb = load_workbook(tmp.name, data_only=True)
+        if replace:
+            # স্ন্যাপশট: replace-এর আগের অবস্থা সংরক্ষণ — ভুল হলে ফেরানোর পথ
+            _old = []
+            for e in LaborDuty.query.filter_by(user_id=current_user.id).all():
+                try:
+                    _h = json.loads(e.history or '[]')
+                except Exception:
+                    _h = []
+                _old.append({'person': e.person, 'provider': e.provider, 'site': e.site,
+                             'start': e.start, 'rate': e.rate, 'off': e.off, 'history': _h})
+            set_user_config(current_user.id, 'labor_snapshot_last',
+                            json.dumps({'at': datetime.utcnow().isoformat(), 'rows': _old},
+                                       ensure_ascii=False))
+            # নতুন ইনসার্টের আগেই পুরনো খাতা মুছতে হবে — নইলে replace-এ সব মুছে যায়
+            LaborDuty.query.filter_by(user_id=current_user.id).delete()
+            db.session.commit()
+        imported, prov_order, provs = 0, [], {}
+        for ws in wb.worksheets:
+            for c in range(1, (ws.max_column or 0) + 1):
+                if ' '.join(str(ws.cell(4, c).value or '').split()).lower() != 'name':
+                    continue
+                prov = ' '.join(str(ws.cell(2, c).value or '').split()) or '(প্রোভাইডারের নাম লেখা নেই)'
+                if prov not in provs:
+                    provs[prov] = True
+                    prov_order.append(prov)
+
+                for r in range(5, (ws.max_row or 0) + 1):
+                    name = ' '.join(str(ws.cell(r, c).value or '').split())
+                    if not name:
+                        continue
+                    low = name.lower()
+                    if low.startswith('total') or low.startswith('grand balance'):
+                        continue
+
+                    def _cmt(rr, cc):
+                        try:
+                            cm = ws.cell(rr, cc).comment
+                        except Exception:
+                            return ''
+                        if cm and cm.text and cm.text.strip():
+                            return ' '.join(cm.text.split())
+                        return ''
+
+                    hist = []
+                    for t in (_cmt(r, c), _cmt(r, c + 1), _cmt(r, c + 3)):
+                        if t and t not in hist:
+                            hist.append(t)
+                    site = ' '.join(str(ws.cell(r, c + 3).value or '').split())
+                    off = bool(site) and site.lower() in DUTY_OFF_WORDS
+                    try:
+                        rate = float(ws.cell(r, c + 2).value) if ws.cell(r, c + 2).value not in (None, '') else None
+                    except (TypeError, ValueError):
+                        rate = None
+                    stv = ws.cell(r, c + 1).value
+                    start = stv.strftime('%Y-%m-%d') if hasattr(stv, 'strftime') \
+                        else ' '.join(str(stv or '').split())[:20]
+                    db.session.add(LaborDuty(user_id=current_user.id, person=name, provider=prov,
+                                             site='' if off else site, start=start, rate=rate,
+                                             off=off, history=json.dumps(hist, ensure_ascii=False)))
+                    imported += 1
+        db.session.commit()
+        return jsonify({'ok': True, 'imported': imported, 'providers': len(prov_order)})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+    finally:
+        try:
+            os.unlink(tmp.name)
+        except Exception:
+            pass
+
+
+@app.route('/api/ws/labor-save', methods=['POST'], strict_slashes=False)
+@login_required
+def labor_save():
+    d = request.get_json() or {}
+    act = str(d.get('act') or 'add')
+    vals = d.get('values') if isinstance(d.get('values'), dict) else d
+    person = ' '.join(str(vals.get('name') or vals.get('person') or '').split())
+    provider = ' '.join(str(vals.get('provider') or d.get('provider') or '').split())
+    site = ' '.join(str(vals.get('site') or '').split())
+    start = str(vals.get('start') or '').strip()[:20]
+    try:
+        rate = float(str(vals.get('rate') or '').replace(',', '')) if vals.get('rate') not in (None, '') else None
+    except (TypeError, ValueError):
+        rate = None
+    off = bool(site) and site.lower() in DUTY_OFF_WORDS
+
+    rows = LaborDuty.query.filter_by(user_id=current_user.id).all()
+    row = next((e for e in rows if G.norm_person(e.person) == G.norm_person(person)), None) if person else None
+
+    if act == 'comment':
+        cmt = ' '.join(str(d.get('comment') or d.get('siteComment') or '').split())
+        if row and cmt:
+            try:
+                hist = json.loads(row.history or '[]')
+            except Exception:
+                hist = []
+            if cmt not in hist:
+                hist.append(cmt)
+                row.history = json.dumps(hist, ensure_ascii=False)
+                db.session.commit()
+        return jsonify({'ok': True})
+
+    if act == 'del':
+        if row:
+            db.session.delete(row)
+            db.session.commit()
+        return jsonify({'ok': True})
+
+    if act in ('end', 'off'):
+        if row:
+            row.off = True
+            row.site = ''
+            db.session.commit()
+        return jsonify({'ok': True})
+
+    if not person:
+        return jsonify({'ok': False, 'error': 'নাম দিন'}), 400
+
+    if act == 'edit' and row:
+        row.site = '' if off else site
+        row.off = off
+        if start:
+            row.start = start
+        if rate is not None:
+            row.rate = rate
+        if provider:
+            row.provider = provider
+    else:
+        db.session.add(LaborDuty(user_id=current_user.id, person=person, provider=provider,
+                                 site='' if off else site, start=start, rate=rate, off=off))
+    for cmt in (str(d.get('comment') or '').strip(), str(d.get('siteComment') or '').strip()):
+        if row and cmt:
+            try:
+                hist = json.loads(row.history or '[]')
+            except Exception:
+                hist = []
+            if cmt not in hist:
+                hist.append(cmt)
+                row.history = json.dumps(hist, ensure_ascii=False)
+    db.session.commit()
+    return jsonify({'ok': True})
+
+
+# ---------------------------------------------------------------- Monthly Cycle টগল
+@app.route('/api/cycle-toggle', methods=['POST'], strict_slashes=False)
+@login_required
+def cycle_toggle():
+    import cycle as _cy
+    # ConfigStore-থেকে সর্বশেষ স্টেট ফাইলে বসাই (cloud ephemeral ডিস্ক)
+    raw = get_user_config(current_user.id, 'cycle_state_raw')
+    if raw:
+        try:
+            with open(os.path.join(BASE, 'cycle.json'), 'w', encoding='utf-8') as f:
+                f.write(raw)
+        except Exception:
+            pass
+    d = request.get_json() or {}
+    ym = str(d.get('month') or '')
+    key = str(d.get('key') or '')
+    if not ym or not key:
+        return jsonify({'ok': False, 'error': 'month ও key দিন'}), 400
+    try:
+        st = _cy.toggle(ym, key, provider=d.get('provider'), value=d.get('value'),
+                        no=d.get('no'), amount=d.get('amount'))
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+    try:
+        with open(os.path.join(BASE, 'cycle.json'), encoding='utf-8') as f:
+            set_user_config(current_user.id, 'cycle_state_raw', f.read())
+    except Exception:
+        pass
+    return jsonify({'ok': True, 'state': st})
+
+
+# ---------------------------------------------------------------- মাস-আর্কাইভ (হিস্ট্রি)
+@app.route('/api/archives', methods=['GET'], strict_slashes=False)
+@login_required
+def archives_list():
+    rows = (MonthArchive.query.filter_by(user_id=current_user.id)
+            .order_by(MonthArchive.year, MonthArchive.month, MonthArchive.created_at)
+            .all())
+    return jsonify({'ok': True, 'archives': [{
+        'id': r.id, 'month': r.month, 'year': r.year, 'kind': r.kind,
+        'filename': r.filename, 'size': len(r.file_bytes or b''),
+        'created_at': r.created_at.isoformat() if r.created_at else None,
+    } for r in rows]})
+
+
+@app.route('/api/archives/<int:arc_id>/download', methods=['GET'], strict_slashes=False)
+@login_required
+def archives_download(arc_id):
+    arc = MonthArchive.query.filter_by(id=arc_id, user_id=current_user.id).first()
+    if not arc or not arc.file_bytes:
+        return jsonify({'ok': False, 'error': 'ফাইল পাওয়া যায়নি'}), 404
+    from urllib.parse import quote
+    from flask import Response
+    safe = (arc.filename or 'file').replace('"', '')
+    return Response(arc.file_bytes,
+                    mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    headers={'Content-Disposition':
+                             "attachment; filename=\"archive-%d-%02d.xlsx\"; filename*=UTF-8''%s"
+                             % (arc.year, arc.month, quote(safe))})
+
+
+# ---------------------------------------------------------------- ফুল ব্যাকআপ (ZIP ডাউনলোড)
+@app.route('/api/backup', methods=['GET'], strict_slashes=False)
+@login_required
+def backup_download():
+    """আপনার অ্যাকাউন্টের পুরো ডেটার ZIP — শিট, ইনভয়েস+PDF, মাস-আর্কাইভ,
+    অগ্রিম-খাতা (JSON + ক্লাউড-শিট xlsx), কনফিগ। পিসি-স্ক্রিপ্ট প্রতিদিন এটাই নামিয়ে OneDrive-এ রাখে।"""
+    import io
+    import zipfile as _zf
+    buf = io.BytesIO()
+    counts = {'sheets': 0, 'invoices': 0, 'archives': 0, 'advance': 0, 'config': 0}
+    with _zf.ZipFile(buf, 'w', _zf.ZIP_DEFLATED) as z:
+        used = set()
+
+        def _zname(folder, name, default):
+            base = re.sub(r'[\\/:*?"<>|]+', '_', str(name or default)).strip() or default
+            cand, n = '%s/%s' % (folder, base), 1
+            while cand in used:
+                root, ext = os.path.splitext(base)
+                cand = '%s/%s-%d%s' % (folder, root, n, ext or '.bin')
+                n += 1
+            used.add(cand)
+            return cand
+
+        # ১. আপলোড করা সব শিট (ডাটা শিট + টেমপ্লেট)
+        for s in DataSheet.query.filter_by(user_id=current_user.id).all():
+            if s.file_bytes:
+                z.writestr(_zname('data_sheets', s.filename, 'sheet-%d.xlsx' % s.id), s.file_bytes)
+                counts['sheets'] += 1
+
+        # ২. ইনভয়েস/স্টেটমেন্ট — PDF + পুরো ডেটা
+        inv_meta = []
+        for inv in Invoice.query.filter_by(user_id=current_user.id).order_by(Invoice.id).all():
+            if inv.pdf_bytes:
+                z.writestr(_zname('invoices', '%s-%s.pdf' % (inv.invoice_no, inv.client_name),
+                                  'invoice-%d.pdf' % inv.id), inv.pdf_bytes)
+                counts['invoices'] += 1
+            inv_meta.append({'id': inv.id, 'kind': inv.kind, 'client_name': inv.client_name,
+                             'client_address': inv.client_address, 'month': inv.month,
+                             'year': inv.year, 'invoice_no': inv.invoice_no,
+                             'total': inv.total, 'net': inv.net,
+                             'data': json.loads(inv.data_json) if inv.data_json else None,
+                             'created_at': inv.created_at.isoformat() if inv.created_at else None})
+        if inv_meta:
+            z.writestr('invoices.json', json.dumps(inv_meta, ensure_ascii=False, indent=1))
+
+        # ৩. মাস-আর্কাইভ
+        for a in MonthArchive.query.filter_by(user_id=current_user.id).all():
+            if a.file_bytes:
+                z.writestr(_zname('archives', a.filename, 'archive-%d.xlsx' % a.id), a.file_bytes)
+                counts['archives'] += 1
+
+        # ৪. অগ্রিম-খাতা: JSON + ক্লাউড-শিট
+        adv_rows = _advance_rows(current_user.id)
+        adv_meta = [{'person': e.person, 'amount': e.amount, 'status': e.status,
+                     'date': e.date, 'reason': e.reason,
+                     'created_at': e.created_at.isoformat() if e.created_at else None}
+                    for e in adv_rows]
+        z.writestr('advance_entries.json', json.dumps(adv_meta, ensure_ascii=False, indent=1))
+        counts['advance'] = len(adv_meta)
+
+        # ৪.৫ লেবার/ডিউটি খাতা
+        lab_meta = []
+        for e in LaborDuty.query.filter_by(user_id=current_user.id).all():
+            try:
+                hist = json.loads(e.history or '[]')
+            except Exception:
+                hist = []
+            lab_meta.append({'person': e.person, 'provider': e.provider, 'site': e.site,
+                             'start': e.start, 'rate': e.rate, 'off': e.off, 'history': hist,
+                             'updated_at': e.updated_at.isoformat() if e.updated_at else None})
+        z.writestr('labor_duty.json', json.dumps(lab_meta, ensure_ascii=False, indent=1))
+        counts['labor'] = len(lab_meta)
+        try:
+            from openpyxl import Workbook
+            awb = Workbook()
+            aws = awb.active
+            aws.title = 'Advance'
+            aws.append(['Name', 'Amount', 'Date', 'Status', 'Reason'])
+            _g = 0.0
+            for e in adv_rows:
+                aws.append([e.person, e.amount or 0.0, e.date or '', e.status or '', e.reason or ''])
+                _g += e.amount or 0.0
+            aws.append([])
+            aws.append(['GRAND TOTAL', _g])
+            abuf = io.BytesIO()
+            awb.save(abuf)
+            z.writestr('Advance sheet ক্লাউড.xlsx', abuf.getvalue())
+        except Exception:
+            pass
+
+        # ৫. কনফিগ (ফোন, খাতা, ইনভয়েস-কনফিগ ইত্যাদি)
+        cfg_rows = ConfigStore.query.filter_by(user_id=current_user.id).all()
+        cfg_out = {}
+        for c in cfg_rows:
+            try:
+                cfg_out[c.key] = json.loads(c.value) if c.value else None
+            except Exception:
+                cfg_out[c.key] = c.value
+            counts['config'] += 1
+        z.writestr('config_store.json', json.dumps(cfg_out, ensure_ascii=False, indent=1))
+
+        # ৬. ম্যানিফেস্ট
+        z.writestr('manifest.txt', (
+            'AI Time Keeper — ক্লাউড ব্যাকআপ\n'
+            'তৈরি: %s (UTC)\n'
+            'অ্যাকাউন্ট: %s\n'
+            'শিট: %d | ইনভয়েস: %d | আর্কাইভ: %d | অগ্রিম-এন্ট্রি: %d | লেবার: %d | কনফিগ-কি: %d\n'
+            % (datetime.utcnow().strftime('%Y-%m-%d %H:%M'), current_user.email,
+               counts['sheets'], counts['invoices'], counts['archives'],
+               counts['advance'], counts['labor'], counts['config'])))
+    from flask import Response
+    fname = 'AI_Time_Keeper_CLOUD_BACKUP_%s.zip' % datetime.utcnow().strftime('%Y%m%d_%H%M')
+    return Response(buf.getvalue(), mimetype='application/zip',
+                    headers={'Content-Disposition': 'attachment; filename="%s"' % fname})
+
+
+# ---------------------------------------------------------------- Profit (রেট/খরচ/পেমেন্ট/ডিউটি)
+def _numf(v):
+    try:
+        return float(v) if v not in (None, '') else 0.0
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _pjson(key, default):
+    raw = get_user_config(current_user.id, key)
+    if raw:
+        try:
+            v = json.loads(raw)
+            if v is not None:
+                return v
+        except Exception:
+            pass
+    return default
+
+
+def _pjson_save(key, value):
+    set_user_config(current_user.id, key, json.dumps(value, ensure_ascii=False))
+
+
+def _profit_files():
+    """আর্কাইভ-করা Total T শিটগুলো — নতুন আগে। file-কি হলো 'archive:<id>'।"""
+    rows = (MonthArchive.query.filter_by(user_id=current_user.id, kind='total_sheet')
+            .order_by(MonthArchive.created_at.desc()).all())
+    files = []
+    for r in rows:
+        files.append({'file': 'archive:%d' % r.id,
+                      'mtime': r.created_at.timestamp() if r.created_at else 0,
+                      'label': r.filename, 'month': r.month, 'year': r.year})
+    return files
+
+
+def _profit_workers(file_key):
+    """Total T শিট (MonthArchive বাইটস) → [{name, provider, hours, rate, total, adv, gas}]"""
+    m = re.match(r'archive:(\d+)', str(file_key or ''))
+    if not m:
+        raise ValueError('টোটাল শিট আর্কাইভ বাছাই করুন')
+    arc = MonthArchive.query.filter_by(id=int(m.group(1)), user_id=current_user.id).first()
+    if not arc or not arc.file_bytes:
+        raise ValueError('টোটাল শিট পাওয়া যায়নি')
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx')
+    tmp.write(arc.file_bytes)
+    tmp.close()
+    try:
+        from generator import preview_total_sheet
+        pv = preview_total_sheet(tmp.name)
+        workers, cur = [], ''
+        for row in pv.get('grand', []):
+            if row.get('t') == 'ref':
+                cur = str(row.get('text', ''))
+            elif row.get('t') == 'w':
+                h, rt = _numf(row.get('h')), _numf(row.get('rate'))
+                # Total কলাম ফর্মুলা — data_only পড়ায় ক্যাশড ০ আসতে পারে,
+                # তাই ঘণ্টা×রেট নিজে হিসাব করি (লোকাল ইঞ্জিনের মতো)
+                workers.append({'name': str(row.get('name', '')), 'provider': cur,
+                                'hours': h, 'rate': rt, 'total': round(h * rt, 2),
+                                'adv': _numf(row.get('adv')), 'gas': _numf(row.get('gas'))})
+        return workers
+    finally:
+        try:
+            os.unlink(tmp.name)
+        except Exception:
+            pass
+
+
+@app.route('/api/ws/profit', methods=['GET'], strict_slashes=False)
+@login_required
+def profit_get():
+    files = _profit_files()
+    want = request.args.get('file') or (files[0]['file'] if files else '')
+    workers, werr = [], None
+    if want:
+        try:
+            workers = _profit_workers(want)
+        except Exception as e:
+            werr = str(e)
+            want = files[0]['file'] if files else ''
+            if want:
+                try:
+                    workers = _profit_workers(want)
+                except Exception:
+                    workers = []
+    return jsonify({'ok': True,
+                    'rates': _pjson('profit_rates', {}),
+                    'srates': _pjson('profit_srates', {}),
+                    'duty': _pjson('profit_duty', {}),
+                    'expenses': _pjson('profit_exp', []),
+                    'pay': _pjson('profit_pay', {}),
+                    'files': files, 'file': want, 'workers': workers,
+                    'error': werr})
+
+
+def _profit_post_load(key, shape):
+    v = _pjson(key, shape)
+    return v if isinstance(v, type(shape)) else shape
+
+
+@app.route('/api/ws/profit-rates', methods=['POST'], strict_slashes=False)
+@login_required
+def profit_rates_post():
+    d = request.get_json() or {}
+    rates = _profit_post_load('profit_rates', {})
+    site = ' '.join(str(d.get('site') or '').split())
+    if not site:
+        return jsonify({'ok': False, 'error': 'সাইটের নাম দিন'}), 400
+    if d.get('del'):
+        rates.pop(site, None)
+    else:
+        rate = _numf(str(d.get('rate') or '').replace(',', ''))
+        if rate < 0:
+            return jsonify({'ok': False, 'error': 'সঠিক রেট লিখুন'}), 400
+        rates[site] = rate
+    _pjson_save('profit_rates', rates)
+    return jsonify({'ok': True, 'rates': rates, 'backup': 'ডেটাবেজ (স্থায়ী)'})
+
+
+@app.route('/api/ws/profit-srates', methods=['POST'], strict_slashes=False)
+@login_required
+def profit_srates_post():
+    d = request.get_json() or {}
+    srates = _profit_post_load('profit_srates', {})
+    person = ' '.join(str(d.get('person') or '').split())
+    key = G.norm_person(person)
+    if not key:
+        return jsonify({'ok': False, 'error': 'লোকের নাম দিন'}), 400
+    if d.get('del'):
+        srates.pop(key, None)
+    else:
+        rate = _numf(str(d.get('rate') or '').replace(',', ''))
+        if rate <= 0:
+            return jsonify({'ok': False, 'error': 'সঠিক রেট লিখুন'}), 400
+        srates[key] = {'name': person, 'rate': rate}
+    _pjson_save('profit_srates', srates)
+    return jsonify({'ok': True, 'srates': srates, 'backup': 'ডেটাবেজ (স্থায়ী)'})
+
+
+@app.route('/api/ws/profit-duty', methods=['POST'], strict_slashes=False)
+@login_required
+def profit_duty_post():
+    d = request.get_json() or {}
+    duty = _profit_post_load('profit_duty', {})
+    month = ' '.join(str(d.get('month') or '').split())[:7]
+    person = ' '.join(str(d.get('person') or '').split())
+    key = G.norm_person(person)
+    if not month or not key:
+        return jsonify({'ok': False, 'error': 'মাস ও নাম দিন'}), 400
+    m = duty.get(month) or {}
+    if d.get('del'):
+        m.pop(key, None)
+        if m:
+            duty[month] = m
+        else:
+            duty.pop(month, None)
+    else:
+        raw = d.get('splits') or []
+        if not isinstance(raw, list) or not raw:
+            return jsonify({'ok': False, 'error': 'সাইট ভাগ দিন'}), 400
+        splits = []
+        for sp in raw:
+            sp = sp or {}
+            site = ' '.join(str(sp.get('site') or '').split())[:60]
+            days = _numf(sp.get('days'))
+            hours = _numf(sp.get('hours'))
+            if site and (days or hours):
+                splits.append({'site': site, 'days': days, 'hours': hours})
+        if not splits:
+            return jsonify({'ok': False, 'error': 'সাইট ভাগ দিন'}), 400
+        m[key] = {'name': re.sub(r'\s*\(.*', '', person).strip(), 'splits': splits}
+        duty[month] = m
+    _pjson_save('profit_duty', duty)
+    return jsonify({'ok': True, 'duty': duty, 'backup': 'ডেটাবেজ (স্থায়ী)'})
+
+
+@app.route('/api/ws/profit-exp', methods=['POST'], strict_slashes=False)
+@login_required
+def profit_exp_post():
+    d = request.get_json() or {}
+    exp = _profit_post_load('profit_exp', [])
+    if d.get('del') is not None:
+        try:
+            idx = int(d.get('del'))
+        except (TypeError, ValueError):
+            return jsonify({'ok': False, 'error': 'সঠিক সারি নয়'}), 400
+        if 0 <= idx < len(exp):
+            exp.pop(idx)
+    else:
+        month = ' '.join(str(d.get('month') or '').split())[:7]
+        label = ' '.join(str(d.get('label') or '').split())[:60]
+        amount = _numf(d.get('amount'))
+        if not month or not label:
+            return jsonify({'ok': False, 'error': 'মাস ও বিবরণ দিন'}), 400
+        exp.append({'month': month, 'label': label, 'amount': amount})
+    _pjson_save('profit_exp', exp)
+    return jsonify({'ok': True, 'expenses': exp, 'backup': 'ডেটাবেজ (স্থায়ী)'})
+
+
+@app.route('/api/ws/profit-pay', methods=['POST'], strict_slashes=False)
+@login_required
+def profit_pay_post():
+    d = request.get_json() or {}
+    pay = _profit_post_load('profit_pay', {})
+    month = ' '.join(str(d.get('month') or '').split())[:7]
+    kind = str(d.get('kind') or '')
+    if not month or not kind:
+        return jsonify({'ok': False, 'error': 'মাস ও ধরন দিন'}), 400
+    m = pay.setdefault(month, {})
+    if kind == 'income':
+        m['income'] = bool(d.get('paid'))
+        m['incomeDate'] = str(d.get('date') or '')[:10]
+    else:
+        prov = ' '.join(str(d.get('provider') or '').split())
+        if not prov:
+            return jsonify({'ok': False, 'error': 'প্রোভাইডার দিন'}), 400
+        pr = m.setdefault('prov', {})
+        if d.get('paid'):
+            pr[prov] = True
+        else:
+            pr.pop(prov, None)
+    _pjson_save('profit_pay', pay)
+    return jsonify({'ok': True, 'pay': pay, 'backup': 'ডেটাবেজ (স্থায়ী)'})
+
+
+@app.route('/api/ws/provider-save', methods=['POST'], strict_slashes=False)
+@login_required
+def provider_save():
+    d = request.get_json() or {}
+    if not isinstance(d, dict) or not d:
+        return jsonify({'ok': False, 'error': 'কনফিগ পাওয়া যায়নি'}), 400
+    _pjson_save('provider_config', d)
+    return jsonify({'ok': True, 'backup': 'ডেটাবেজ (স্থায়ী)'})
+
+
+@app.route('/api/ws/profit-import', methods=['POST'], strict_slashes=False)
+@login_required
+def profit_import():
+    """লোকাল বট থেকে profit-ডেটা (রেট/সাইট-রেট/ডিউটি/খরচ/পেমেন্ট) ক্লাউডে সিঙ্ক।"""
+    d = request.get_json() or {}
+    saved = []
+    for short, key, shape in (('rates', 'profit_rates', {}), ('srates', 'profit_srates', {}),
+                              ('duty', 'profit_duty', {}), ('exp', 'profit_exp', []),
+                              ('pay', 'profit_pay', {})):
+        if short in d:
+            v = d.get(short)
+            _pjson_save(key, v if isinstance(v, type(shape)) else shape)
+            saved.append(key)
+    if not saved:
+        return jsonify({'ok': False, 'error': 'rates/srates/duty/exp/pay — কিছুই পাওয়া যায়নি'}), 400
+    return jsonify({'ok': True, 'saved': saved, 'backup': 'ডেটাবেজ (স্থায়ী)'})
+
+
+# ---------------------------------------------------------------- Monthly Cycle টাইমলাইন
+@app.route('/api/cycle', methods=['GET'], strict_slashes=False)
+@login_required
+def cycle_get():
+    import cycle as _cy
+    # ক্লাউডে ephemeral ডিস্ক — টগল-স্টেট ConfigStore-এ থাকে, ফাইলে বসিয়ে নেওয়া হয়
+    raw = get_user_config(current_user.id, 'cycle_state_raw')
+    if raw:
+        try:
+            with open(os.path.join(BASE, 'cycle.json'), 'w', encoding='utf-8') as f:
+                f.write(raw)
+        except Exception:
+            pass
+    files = _profit_files()
+    want = request.args.get('file') or (files[0]['file'] if files else '')
+    workers = []
+    if want:
+        try:
+            workers = _profit_workers(want)
+        except Exception:
+            workers = []
+    provs = []
+    for w in workers:
+        pr = str(w.get('provider') or '').strip()
+        if pr and pr not in provs:
+            provs.append(pr)
+    if not provs:
+        for a in LaborAssign.query.filter_by(user_id=current_user.id).all():
+            pr = (a.provider or '').strip()
+            if pr and pr not in provs:
+                provs.append(pr)
+    pay = _pjson('profit_pay', {})
+    try:
+        back = int(request.args.get('back', 3) or 3)
+    except (TypeError, ValueError):
+        back = 3
+    try:
+        fwd = int(request.args.get('fwd', 1) or 1)
+    except (TypeError, ValueError):
+        fwd = 1
+    start = request.args.get('start') or '2026-09'
+    return jsonify(_cy.cycle_state(providers=provs, pay=pay,
+                                   start=start, months_back=back, months_fwd=fwd))
+
+
+# ---------------------------------------------------------------- ক্লাউড মেমোরি (স্টোরেজ-হিসাব)
 @app.route('/api/storage', methods=['GET'], strict_slashes=False)
 @login_required
+
+
 def storage_info():
     """ক্লাউড মেমোরি: মোট/ব্যবহৃত/খালি জায়গা + টেবিল-প্রতি খরচ + আপনার ডেটার হিসাব।"""
     from sqlalchemy import text
