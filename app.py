@@ -2846,17 +2846,6 @@ def static_proxy(path):
     abort(404)
 
 
-# ---------------------------------------------------------------- রান
-if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
-    app.run(
-        host='0.0.0.0',
-        port=int(os.environ.get('PORT', 5000)),
-        debug=False
-    )
-
-
 # ---------------------------------------------------------------- স্বাস্থ্য-পরীক্ষা ও স্বয়ং-নির্ণয় (Auto-Repair)
 EXPECTED_ROUTES = {
     '/', '/login', '/dashboard', '/workspace',
@@ -2876,19 +2865,12 @@ EXPECTED_ROUTES = {
     '/api/cycle', '/api/cycle-toggle', '/api/storage', '/api/backup',
     '/api/sync/status', '/api/sync/pin', '/api/sync/pull', '/api/sync/push',
     '/api/archives', '/api/invoices',
+    '/api/health', '/api/health/deep',
 }
 
 def _route_check():
     have = {str(r) for r in app.url_map.iter_rules()}
     return sorted(e for e in EXPECTED_ROUTES if e not in have)
-
-# স্টার্টআপেই নিজেকে পরীক্ষা — রাউট হারালে চিৎকার করে জানাবে (গতকালের শিক্ষা)
-_MISSING_ROUTES = _route_check()
-if _MISSING_ROUTES:
-    print('!!! ROUTE CHECK: %d expected route(s) MISSING: %s' % (len(_MISSING_ROUTES), _MISSING_ROUTES), file=sys.stderr)
-else:
-    print('ROUTE CHECK: all %d expected routes registered' % len(EXPECTED_ROUTES), file=sys.stderr)
-
 
 @app.route('/api/health', methods=['GET'], strict_slashes=False)
 def health_public():
@@ -2949,3 +2931,25 @@ def health_deep():
                     'routes_missing': _route_check(),
                     'errors_recent': _ERROR_LOG[:10],
                     'account': current_user.email})
+
+
+# স্টার্টআপেই নিজেকে পরীক্ষা — রাউট হারালে চিৎকার করে জানাবে (গতকালের শিক্ষা)
+# খেয়াল: সব রুটের *পরে* চলবে, নইলে নতুন রুটগুলো ভুল করে "মিসিং" দেখাবে।
+_MISSING_ROUTES = _route_check()
+if _MISSING_ROUTES:
+    print('!!! ROUTE CHECK: %d expected route(s) MISSING: %s' % (len(_MISSING_ROUTES), _MISSING_ROUTES), file=sys.stderr)
+else:
+    print('ROUTE CHECK: all %d expected routes registered' % len(EXPECTED_ROUTES), file=sys.stderr)
+
+
+# ---------------------------------------------------------------- রান
+# সতর্কতা: এই ব্লক অবশ্যই ফাইলের একেবারে শেষে থাকবে — মাঝখানে থাকলে
+# app.run() এখানেই আটকে যায় আর তার নিচের রুটগুলো কখনো নিবে না (আজকের বাগ)।
+if __name__ == '__main__':
+    with app.app_context():
+        db.create_all()
+    app.run(
+        host='0.0.0.0',
+        port=int(os.environ.get('PORT', 5000)),
+        debug=False
+    )

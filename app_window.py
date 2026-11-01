@@ -47,9 +47,11 @@ def wait_for_server(timeout=20):
 
 def start_server():
     """আলাদা প্রসেসে app.py চালু করে।"""
+    env = dict(os.environ, PORT="8765")   # উইন্ডো ৮৭৬৫-এই অপেক্ষা করে — সার্ভারও সেখানেই চালু হোক
     subprocess.Popen(
         [PY, os.path.join(BASE, "app.py")],
         cwd=BASE,
+        env=env,
         creationflags=subprocess.CREATE_NO_WINDOW,   # কালো কনসোল উইন্ডো লাগবে না
     )
 
