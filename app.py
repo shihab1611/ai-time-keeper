@@ -2689,6 +2689,11 @@ def login_page():
     return send_from_directory(app.static_folder, 'login.html')
 
 
+@app.route('/dashboard', methods=['GET'])
+def dashboard_page():
+    return send_from_directory(app.static_folder, 'dashboard.html')
+
+
 @app.route('/workspace', methods=['GET'])
 def workspace():
     return send_from_directory(app.static_folder, 'workspace.html')
