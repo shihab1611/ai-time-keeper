@@ -6,6 +6,7 @@ AI Time Keeper — Cloud (Flask) version
 """
 
 import os
+import sys
 import re
 import json
 import time
@@ -61,6 +62,31 @@ def _no_cache_static(resp):
 
 db = SQLAlchemy(app)
 login_manager = LoginManager(app)
+
+# ---------------------------------------------------------------- এরর-স্মৃতি (Auto-Diagnose)
+from werkzeug.exceptions import HTTPException as _HTTPException
+
+_ERROR_LOG = []          # শেষ ৮ভ অব্যাহৃত এরর (লোকাল মেমরি)
+_ERROR_LOG_LIMIT = 30
+
+@app.errorhandler(_HTTPException)
+def _http_exception(e):
+    return e
+
+@app.errorhandler(Exception)
+def _uncaught_exception(e):
+    try:
+        _ERROR_LOG.insert(0, {
+            'at': datetime.utcnow().isoformat() + 'Z',
+            'path': request.path,
+            'err': type(e).__name__ + ': ' + str(e)[:300],
+        })
+        del _ERROR_LOG[_ERROR_LOG_LIMIT:]
+    except Exception:
+        pass
+    if request.path.startswith('/api/'):
+        return jsonify({'ok': False, 'error': str(e) or type(e).__name__}), 500
+    return str(e), 500
 login_manager.login_view = 'login'
 
 # নিরাপত্তা: CORS শুধু অনুমোদিত ওরিজিনে — ক্রেডেনশিয়ালসহ যেকোনো সাইট থেকে কল বন্ধ
@@ -2829,3 +2855,97 @@ if __name__ == '__main__':
         port=int(os.environ.get('PORT', 5000)),
         debug=False
     )
+
+
+# ---------------------------------------------------------------- স্বাস্থ্য-পরীক্ষা ও স্বয়ং-নির্ণয় (Auto-Repair)
+EXPECTED_ROUTES = {
+    '/', '/login', '/dashboard', '/workspace',
+    '/api/auth/login', '/api/auth/register', '/api/auth/logout', '/api/auth/me',
+    '/api/lock/status', '/api/lock/verify', '/api/lock/register', '/api/lock/logout',
+    '/api/upload-excel', '/api/month-clear', '/api/files', '/api/months',
+    '/api/ws/advance', '/api/ws/advance-add', '/api/ws/advance-paid', '/api/ws/advance-remove',
+    '/api/ws/advance-import', '/api/ws/advance-export',
+    '/api/ws/labor', '/api/ws/labor-import', '/api/ws/labor-save', '/api/ws/labor-assign', '/api/ws/labor-refresh',
+    '/api/ws/phones', '/api/ws/employees', '/api/ws/employee-files',
+    '/api/ws/profit', '/api/ws/profit-rates', '/api/ws/profit-srates', '/api/ws/profit-duty',
+    '/api/ws/profit-exp', '/api/ws/profit-pay', '/api/ws/provider-save', '/api/ws/profit-import',
+    '/api/ws/invoice', '/api/ws/invoice-add', '/api/ws/invoice-remove',
+    '/api/ws/invoice-gen', '/api/ws/invoice-gen-providers', '/api/ws/invoice-gen-save-one', '/api/ws/invoice-gen-save-pdf', '/api/ws/invoice-gen-config',
+    '/api/ws/company-invoice', '/api/ws/company-invoice-providers', '/api/ws/company-invoice-save-one', '/api/ws/company-invoice-config',
+    '/api/ws/add-invoice', '/api/ws/add-invoice-providers', '/api/ws/add-invoice-save-one', '/api/ws/add-invoice-config',
+    '/api/cycle', '/api/cycle-toggle', '/api/storage', '/api/backup',
+    '/api/sync/status', '/api/sync/pin', '/api/sync/pull', '/api/sync/push',
+    '/api/archives', '/api/invoices',
+}
+
+def _route_check():
+    have = {str(r) for r in app.url_map.iter_rules()}
+    return sorted(e for e in EXPECTED_ROUTES if e not in have)
+
+# স্টার্টআপেই নিজেকে পরীক্ষা — রাউট হারালে চিৎকার করে জানাবে (গতকালের শিক্ষা)
+_MISSING_ROUTES = _route_check()
+if _MISSING_ROUTES:
+    print('!!! ROUTE CHECK: %d expected route(s) MISSING: %s' % (len(_MISSING_ROUTES), _MISSING_ROUTES), file=sys.stderr)
+else:
+    print('ROUTE CHECK: all %d expected routes registered' % len(EXPECTED_ROUTES), file=sys.stderr)
+
+
+@app.route('/api/health', methods=['GET'], strict_slashes=False)
+def health_public():
+    """পিং-স্তরের স্বাস্থ্য: ডেটাবেজ জাগ্রত, রাউট অক্ষত, শেষ এররগুলো।"""
+    from sqlalchemy import text
+    db_ok, db_err = True, None
+    try:
+        with db.engine.connect() as conn:
+            conn.execute(text('SELECT 1'))
+    except Exception as e:
+        db_ok, db_err = False, type(e).__name__ + ': ' + str(e)[:200]
+    missing = _route_check()
+    return jsonify({'ok': True,
+                    'db': 'up' if db_ok else 'down',
+                    'db_error': db_err,
+                    'routes_expected': len(EXPECTED_ROUTES),
+                    'routes_missing': missing,
+                    'errors_recent': _ERROR_LOG[:5],
+                    'version': 'atk-2026-11-01'})
+
+
+@app.route('/api/health/deep', methods=['GET'], strict_slashes=False)
+@login_required
+def health_deep():
+    """লগইন-করা অ্যাকাউন্টের গভীর স্বাস্থ্য-হাজিরা।"""
+    from sqlalchemy import text
+    db_ok, db_err = True, None
+    tables = []
+    try:
+        with db.engine.connect() as conn:
+            conn.execute(text('SELECT 1'))
+    except Exception as e:
+        db_ok, db_err = False, type(e).__name__ + ': ' + str(e)[:200]
+    try:
+        # টেবিল-সাইজ মেট্রিক্স শুধু Postgres-এ (SQLite লোকাল টেস্টে থাকবে খালি)
+        with db.engine.connect() as conn:
+            trows = conn.execute(text(
+                "SELECT c.relname, pg_total_relation_size(c.oid) "
+                "FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace "
+                "WHERE n.nspname='public' AND c.relkind='r' "
+                "ORDER BY pg_total_relation_size(c.oid) DESC")).all()
+            tables = [{'name': r[0], 'kb': round(r[1] / 1024.0, 1)} for r in trows]
+    except Exception:
+        tables = []
+    counts = {
+        'sheets': DataSheet.query.filter_by(user_id=current_user.id).count(),
+        'invoices': Invoice.query.filter_by(user_id=current_user.id).count(),
+        'archives': MonthArchive.query.filter_by(user_id=current_user.id).count(),
+        'advance': AdvanceEntry.query.filter_by(user_id=current_user.id).count(),
+        'labor': LaborDuty.query.filter_by(user_id=current_user.id).count(),
+        'labor_assign': LaborAssign.query.filter_by(user_id=current_user.id).count(),
+    }
+    return jsonify({'ok': True,
+                    'db': 'up' if db_ok else 'down',
+                    'db_error': db_err,
+                    'tables': tables,
+                    'counts': counts,
+                    'routes_missing': _route_check(),
+                    'errors_recent': _ERROR_LOG[:10],
+                    'account': current_user.email})
