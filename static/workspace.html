@@ -1369,7 +1369,7 @@ body[data-theme="paper"].themeFade::after{
 <button id="w4" onclick="wtab(4)">📢 Notice/Task</button>
 <button id="w5" onclick="wtab(5)">📧 Mail</button>
 <button id="w9" onclick="wtab(9)">⚙️ সেটিংস</button>
-<button class="ext" onclick="location.href='/'">⏱️ Time Keeper</button>
+<button class="ext" onclick="location.href='/dashboard'">⏱️ Time Keeper</button>
 </nav>
 <div class="sidefoot">🔒 Local only • Time Keeper থেকে আলাদা</div>
 </aside>
@@ -1383,10 +1383,10 @@ body[data-theme="paper"].themeFade::after{
 <div class="hero" id="dashHero"><div class="k">📊 কোম্পানির অবস্থা</div><div class="big">…</div><div class="sub2">হিসাব লোড হচ্ছে…</div></div>
 <div class="tiles" id="dashTiles"></div>
 <div class="card"><h2>⏳ বকেয়া ও ডিউ</h2><div class="dues" id="dashDues"><div class="hint">লোড হচ্ছে…</div></div></div>
-<div class="card"><h2>📊 মাসের হিসাব — লাইভ চার্ট <span class="badge" style="background:rgba(34,211,238,.2);border-color:rgba(34,211,238,.5)">⚡ Chart.js</span></h2>
+<div class="card"><h2 data-i18n="📊 Monthly numbers — live charts">📊 মাসের হিসাব — লাইভ চার্ট <span class="badge" style="background:rgba(34,211,238,.2);border-color:rgba(34,211,238,.5)">⚡ Chart.js</span></h2>
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:center">
- <div><canvas id="chHours" height="170" aria-label="প্রোভাইডার-ভিত্তিক ঘণ্টা"></canvas><div class="hint" style="text-align:center">প্রোভাইডার-ভিত্তিক ঘণ্টা</div></div>
- <div><canvas id="chAdv" height="170" aria-label="অগ্রিম পরিশোধ"></canvas><div class="hint" style="text-align:center">অগ্রিম: পরিশোধিত বনাম বাকি</div></div>
+ <div><canvas id="chHours" height="170" aria-label="প্রোভাইডার-ভিত্তিক ঘণ্টা"></canvas><div class="hint" style="text-align:center" data-i18n="hours by provider">প্রোভাইডার-ভিত্তিক ঘণ্টা</div></div>
+ <div><canvas id="chAdv" height="170" aria-label="অগ্রিম পরিশোধ"></canvas><div class="hint" style="text-align:center" data-i18n="advance: paid vs due">অগ্রিম: পরিশোধিত বনাম বাকি</div></div>
 </div></div>
 <div class="card" id="cycCard"><h2>🔄 মাসিক চক্র — টিমলাইন</h2><div class="hint">সাইটের টাইমশিট → আপনার চেক → ক্লিয়ার → প্রোভাইডারের ইনভোয়়েস → ডাকা সাইট M+1-15 → বিল M+2-15। টাক ক্লিক চাপে।</div><div id="cycBox"><div class="hint">লোড হচ্ছে।</div></div></div><div class="card"><h2>⚡ দ্রুত কাজ</h2>
 <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -1415,7 +1415,7 @@ body[data-theme="paper"].themeFade::after{
 <span class="fwrap"><button class="ghost fbtn" onclick="document.getElementById('advImportFile').click()">📥 শিট ইমপোর্ট</button>
 <button class="ghost fbtn" onclick="advExport()">📤 ক্লাউড শিট (.xlsx)</button>
 <input type="file" id="advImportFile" accept=".xlsx,.xlsm" style="display:none" onchange="advImport(this)">
-<label class="hint" style="display:inline-flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="advImportReplace"> আগেরটা মুছে নতুন করে</label></span>
+<label class="hint" style="display:inline-flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="advImportReplace"> <span data-i18n="replace existing">আগেরটা মুছে নতুন করে</span></label></span>
 <span class="fwrap"><button class="ghost fbtn" id="advFilterBtn" onclick="advFilterToggle()">💰 অনপেইড ▾</button>
 <div class="fmenu" id="advFilterMenu">
 <button data-f="unpaid" onclick="setAdvFilter('unpaid')">💰 অনপেইড (বাকি)</button>
@@ -1440,10 +1440,10 @@ body[data-theme="paper"].themeFade::after{
 <div id="ws6" style="display:none"><div class="card">
 <h2>👷 লোক ও সাইট
 <span class="badge" style="background:rgba(74,222,128,.25);border-color:rgba(74,222,128,.55)">☁️ ক্লাউড খাতা</span>
-<span class="fwrap"><button class="ghost" style="padding:5px 12px" onclick="document.getElementById('labImportFile').click()">📥 শিট ইমপোর্ট</button>
+<span class="fwrap"><button class="ghost" style="padding:5px 12px" onclick="document.getElementById('labImportFile').click()" data-i18n="📥 Import sheet">📥 শিট ইমপোর্ট</button>
 <input type="file" id="labImportFile" accept=".xlsx,.xlsm" style="display:none" onchange="laborImport(this)">
 <label class="hint" style="display:inline-flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="labImportReplace"> আগেরটা মুছে নতুন করে</label>
-<button class="ghost" style="padding:5px 12px" onclick="loadLabor()">🔄 রিফ্রেশ</button></span></h2>
+<button class="ghost" style="padding:5px 12px" onclick="loadLabor()" data-i18n="🔄 Refresh">🔄 রিফ্রেশ</button></span></h2>
 <div class="hint">📂 ক্লাউড খাতাটা ডেটাবেজে স্থায়ী — পুরনো <b>working in company Manpower 2 বট.xlsx</b> ইমপোর্ট করলে সব লোক/সাইট/রেট এবং ডিউটি-হিস্ট্রি (কমেন্ট) এখানে চলে আসবে।</div>
 <div class="roster" id="labRoster"></div>
 <div class="bigadd">
@@ -1658,14 +1658,14 @@ body[data-theme="paper"].themeFade::after{
 
 <div class="grpTitle" id="wsSetLinkT">🔗 অন্য জায়গা</div>
 <div class="wa-row">
-<div><button class="ghost" style="width:100%" onclick="location.href='/'">⏱️ AI Time Keeper</button></div>
+<div><button class="ghost" style="width:100%" onclick="location.href='/dashboard'">⏱️ AI Time Keeper</button></div>
 <div></div>
 </div>
 </div>
 
 <div class="card" id="wsStorageCard">
-<h2 id="wsStoreTitle">☁️ ক্লাউড মেমোরি — জায়গা কতটুকু ভরা</h2>
-<div class="hint">আপনার সব ডেটা (শিট, ইনভয়েস, খাতা, আর্কাইভ) এই এক জায়গায় থাকে। ফ্রি সীমা ~১ GB — এই গতিতে বছরের পর বছর জায়গা বাকি থাকবে।</div>
+<h2 id="wsStoreTitle" data-i18n="☁️ Cloud Memory — how full it is">☁️ ক্লাউড মেমোরি — জায়গা কতটুকু ভরা</h2>
+<div class="hint" data-i18n="All your data (sheets, invoices, ledgers, archives) lives here. Free limit ~1 GB — at this pace it lasts for years.">আপনার সব ডেটা (শিট, ইনভয়েস, খাতা, আর্কাইভ) এই এক জায়গায় থাকে। ফ্রি সীমা ~১ GB — এই গতিতে বছরের পর বছর জায়গা বাকি থাকবে।</div>
 <div style="margin:14px 0 4px">
  <div style="display:flex;justify-content:space-between;font-size:13px;gap:8px">
   <span id="stUsedTxt">লোড হচ্ছে…</span><span id="stFreeTxt"></span>
@@ -1676,20 +1676,20 @@ body[data-theme="paper"].themeFade::after{
 </div>
 <div id="stTables" class="hint">লোড হচ্ছে…</div>
 <div id="stCounts" style="margin-top:10px"></div>
-<div class="hint" id="stNote">সীমা ছুঁতে চাইলে নতুন লেখা থেমে যাবে (কিছু মোছা হয় না) — তখন আমাকে জানাবেন।</div>
+<div class="hint" id="stNote" data-i18n="If the limit is hit, new writes pause (nothing is deleted) — let me know then.">সীমা ছুঁতে চাইলে নতুন লেখা থেমে যাবে (কিছু মোছা হয় না) — তখন আমাকে জানাবেন।</div>
 </div>
 
 <div class="card" id="wsSyncCard">
-<h2 id="wsSyncTitle">🔄 ক্লাউড সিঙ্ক — লোকাল ↔ ক্লাউড</h2>
+<h2 id="wsSyncTitle" data-i18n="🔄 Cloud Sync — local ↔ cloud">🔄 ক্লাউড সিঙ্ক — লোকাল ↔ ক্লাউড</h2>
 <div class="hint" id="syncHint">লোড হচ্ছে…</div>
 <div id="syncBody" style="display:none">
  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0">
   <input id="syncPin" type="password" inputmode="numeric" placeholder="PIN (৪-৮ ডিজিট)" maxlength="8" style="max-width:180px">
-  <button class="ghost" onclick="syncPinSet()">🔑 PIN সেট</button>
+  <button class="ghost" onclick="syncPinSet()" data-i18n="🔑 Set PIN">🔑 PIN সেট</button>
  </div>
  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;align-items:center">
-  <button class="ghost" style="border-color:rgba(74,222,128,.6)" onclick="syncDo('pull')">⬇️ ক্লাউড → লোকাল</button>
-  <button class="ghost" style="border-color:rgba(251,191,36,.6)" onclick="syncDo('push')">⬆️ লোকাল → ক্লাউড</button>
+  <button class="ghost" style="border-color:rgba(74,222,128,.6)" onclick="syncDo('pull')" data-i18n="⬇️ Cloud → Local">⬇️ ক্লাউড → লোকাল</button>
+  <button class="ghost" style="border-color:rgba(251,191,36,.6)" onclick="syncDo('push')" data-i18n="⬆️ Local → Cloud">⬆️ লোকাল → ক্লাউড</button>
   <label class="hint" style="display:inline-flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="syncDry"> শুধু দেখো (dry-run)</label>
  </div>
  <div class="hint" id="syncMsg">⬇️ Pull = ক্লাউডের খাতা পিসিতে বসবে • ⬆️ Push = পিসির খাতা ক্লাউডে যাবে (ক্লাউডের পুরনো অবস্থার স্ন্যাপশট সংরক্ষিত থাকবে) • PIN ছাড়া কিছুই চলবে না</div>
@@ -2815,6 +2815,10 @@ function wsApplySetLang(){
     const bn = b.textContent.trim();
     if (b.dataset.setBn == null) b.dataset.setBn = bn;
     b.textContent = en ? (WS_SET_EN[bn] || bn) : b.dataset.setBn;
+  });
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    if (el.dataset.setBn == null) el.dataset.setBn = el.innerHTML.trim();
+    el.innerHTML = en ? el.dataset.i18n : el.dataset.setBn;
   });
   wsPaintSetLang();
 }

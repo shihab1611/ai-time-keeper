@@ -1693,6 +1693,37 @@ def labor_save():
     return jsonify({'ok': True})
 
 
+# ---------------------------------------------------------------- Monthly Cycle টগল
+@app.route('/api/cycle-toggle', methods=['POST'], strict_slashes=False)
+@login_required
+def cycle_toggle():
+    import cycle as _cy
+    # ConfigStore-থেকে সর্বশেষ স্টেট ফাইলে বসাই (cloud ephemeral ডিস্ক)
+    raw = get_user_config(current_user.id, 'cycle_state_raw')
+    if raw:
+        try:
+            with open(os.path.join(BASE, 'cycle.json'), 'w', encoding='utf-8') as f:
+                f.write(raw)
+        except Exception:
+            pass
+    d = request.get_json() or {}
+    ym = str(d.get('month') or '')
+    key = str(d.get('key') or '')
+    if not ym or not key:
+        return jsonify({'ok': False, 'error': 'month ও key দিন'}), 400
+    try:
+        st = _cy.toggle(ym, key, provider=d.get('provider'), value=d.get('value'),
+                        no=d.get('no'), amount=d.get('amount'))
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+    try:
+        with open(os.path.join(BASE, 'cycle.json'), encoding='utf-8') as f:
+            set_user_config(current_user.id, 'cycle_state_raw', f.read())
+    except Exception:
+        pass
+    return jsonify({'ok': True, 'state': st})
+
+
 # ---------------------------------------------------------------- মাস-আর্কাইভ (হিস্ট্রি)
 @app.route('/api/archives', methods=['GET'], strict_slashes=False)
 @login_required
@@ -2098,6 +2129,14 @@ def profit_import():
 @login_required
 def cycle_get():
     import cycle as _cy
+    # ক্লাউডে ephemeral ডিস্ক — টগল-স্টেট ConfigStore-এ থাকে, ফাইলে বসিয়ে নেওয়া হয়
+    raw = get_user_config(current_user.id, 'cycle_state_raw')
+    if raw:
+        try:
+            with open(os.path.join(BASE, 'cycle.json'), 'w', encoding='utf-8') as f:
+                f.write(raw)
+        except Exception:
+            pass
     files = _profit_files()
     want = request.args.get('file') or (files[0]['file'] if files else '')
     workers = []

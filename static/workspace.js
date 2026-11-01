@@ -704,13 +704,13 @@ async function loadCharts(){
   const labels=Object.keys(byP),vals=labels.map(k=>Math.round(byP[k]*10)/10);
   const c1=document.getElementById('chHours');
   if(c1){if(_ch1)_ch1.destroy();_ch1=new Chart(c1,{type:'bar',
-   data:{labels:labels,datasets:[{label:'ঘণ্টা',data:vals,backgroundColor:'#22d3ee',borderRadius:6}]},
+   data:{labels:labels,datasets:[{label:(window.WS_LANG==='en'?'hours':'ঘণ্টা'),data:vals,backgroundColor:'#22d3ee',borderRadius:6}]},
    options:{plugins:{legend:{display:false}},scales:{y:{beginAtZero:true}}}})}
   // ২. অগ্রিম: পরিশোধিত বনাম বাকি (ডোনাট)
   let paid=0,bal=0;(ad.people||[]).forEach(p=>{paid+=p.paid||0;bal+=p.balance||0});
   const c2=document.getElementById('chAdv');
   if(c2){if(_ch2)_ch2.destroy();_ch2=new Chart(c2,{type:'doughnut',
-   data:{labels:['পরিশোধিত','বাকি'],datasets:[{data:[Math.round(paid*100)/100,Math.round(bal*100)/100],backgroundColor:['#4ade80','#f87171'],borderWidth:0}]},
+   data:{labels:(window.WS_LANG==='en'?['paid','due']:['পরিশোধিত','বাকি']),datasets:[{data:[Math.round(paid*100)/100,Math.round(bal*100)/100],backgroundColor:['#4ade80','#f87171'],borderWidth:0}]},
    options:{cutout:'62%',plugins:{legend:{position:'bottom'}}}})}
  }catch(e){}
 }
@@ -721,11 +721,12 @@ async function loadStorage(){
   const bar=document.getElementById('stBar');
   if(bar)bar.style.width=Math.min(j.used_pct,100)+'%';
   const u=document.getElementById('stUsedTxt');
-  if(u)u.textContent='☁️ ভরা: '+j.used_mb+' MB ('+j.used_pct+'%)';
+  const EN=(window.WS_LANG==='en');
+  if(u)u.textContent=EN?('☁️ Used: '+j.used_mb+' MB ('+j.used_pct+'%)'):('☁️ ভরা: '+j.used_mb+' MB ('+j.used_pct+'%)');
   const f=document.getElementById('stFreeTxt');
-  if(f)f.textContent='খালি: '+j.free_mb+' MB / '+j.limit_mb+' MB';
+  if(f)f.textContent=(EN?'Free: ':'খালি: ')+j.free_mb+' MB / '+j.limit_mb+' MB';
   const t=document.getElementById('stTables');
-  if(t)t.innerHTML='🧮 টেবিল-প্রতি খরচ:<br>'+(j.tables||[]).map(x=>'• '+esc(x.name)+' — '+x.kb+' KB').join('<br>');
+  if(t)t.innerHTML=(EN?'🧮 Per-table usage:':'🧮 টেবিল-প্রতি খরচ:')+'<br>'+(j.tables||[]).map(x=>'• '+esc(x.name)+' — '+x.kb+' KB').join('<br>');
   const cn=document.getElementById('stCounts');
   const k=j.counts||{};
   if(cn)cn.innerHTML='📊 আপনার হিসাব: 📄 শিট '+k.sheets+' • 🧾 ইনভয়েস '+k.invoices+' • 🗄️ আর্কাইভ '+k.archives+' • 💰 অগ্রিম-এন্ট্রি '+k.advance+' • 🧷 লেবার '+k.labor+' • ⚙️ কনফিগ '+k.config+'<br><span class="hint">অ্যাকাউন্ট: '+esc(j.account||'')+'</span>';
