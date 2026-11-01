@@ -1314,6 +1314,20 @@ def _db_advance_people():
     return people, order
 
 
+def _labor_index_map(user_id):
+    """person-normkey → provider: LaborDuty আগে, ম্যানুয়াল LaborAssign জিতে যায়।"""
+    idx = {}
+    for e in LaborDuty.query.filter_by(user_id=user_id).all():
+        k = G.norm_person(e.person)
+        if k and e.provider:
+            idx.setdefault(k, e.provider)
+    for a in LaborAssign.query.filter_by(user_id=user_id).all():
+        k = G.norm_person(a.person)
+        if k and a.provider:
+            idx[k] = a.provider
+    return idx
+
+
 def _labor_provider_map():
     """অগ্রিম-খাতার প্রোভাইডার-ম্যাপিং: LaborDuty আগে, ম্যানুয়াল LaborAssign জিতে যায়।"""
     return _labor_index_map(current_user.id)
