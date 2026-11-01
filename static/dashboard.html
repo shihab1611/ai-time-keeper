@@ -3,7 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#4c1d95">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icons/icon-192.png">
 <title>AI Time Keeper — Dashboard</title>
+<script>
+/* লগইন-গেট: লগইন না থাকলে লক-স্ক্রিনে */
+(function(){try{var x=new XMLHttpRequest();x.open('GET','/api/auth/me',false);x.send();
+if(x.status!==200){location.replace('/login');}}catch(e){location.replace('/login');}})();
+</script>
 <style>
 :root{--bg:#1a1040;--card:rgba(255,255,255,.1);--line:rgba(255,255,255,.22);--txt:#f2f0ff;--mut:#cfc6f5;--acc:#7dd3fc;--ok:#4ade80;--warn:#fbbf24;--red:#f87171;--vio:#a78bfa;--pink:#f0abfc;--cyan:#67e8f9}
 *{box-sizing:border-box}
