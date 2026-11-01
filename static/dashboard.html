@@ -1779,7 +1779,7 @@ body.cgOn .cg{opacity:1}
 <div class="liqOrb"></div><div class="grainLayer"></div>
 <div class="layout">
 <aside class="sidebar">
-<div class="brand"><div class="logo"><svg width="26" height="26" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="13.5" r="7.5" fill="rgba(255,255,255,.25)" stroke="#fff" stroke-width="1.6"/><path d="M12 10v3.5l2.5 1.8" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/><path d="M12 2.5v2.5M9 2.5h6" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg></div><div>AI Time<br>Keeper</div><div class="brandPwr"><button class="pwrBtn rsBtn" id="rsBtn" onclick="askRestart()" title="রিস্টার্ট করুন (Restart — সারভার ফ্রেশ হবে)" data-i18n-title="rsBtnTitle">🔄</button><button class="pwrBtn sdBtn" id="sdBtn" onclick="askShutdown()" title="Stop server" data-i18n-title="sdBtnTitle">⏻</button></div></div>
+<div class="brand"><div class="logo"><svg width="26" height="26" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="13.5" r="7.5" fill="rgba(255,255,255,.25)" stroke="#fff" stroke-width="1.6"/><path d="M12 10v3.5l2.5 1.8" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/><path d="M12 2.5v2.5M9 2.5h6" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg></div><div>AI Time<br>Keeper</div><div class="brandPwr"><button class="pwrBtn rsBtn" id="rsBtn" onclick="askRestart()" data-local-only="1" title="রিস্টার্ট করুন (Restart — সারভার ফ্রেশ হবে)" data-i18n-title="rsBtnTitle">🔄</button><button class="pwrBtn sdBtn" id="sdBtn" onclick="askShutdown()" data-local-only="1" title="Stop server" data-i18n-title="sdBtnTitle">⏻</button></div></div>
 <nav>
 <button id="t1" class="on" onclick="tab(1)" data-i18n="tab1">⚙️ Generate</button>
 <button id="t2" onclick="tab(2)" data-i18n="tab2">📝 Data Entry + Preview</button>
@@ -4645,5 +4645,21 @@ document.addEventListener('DOMContentLoaded', () => setTimeout(() => MOTION.init
 })();
 </script>
 
+<script>
+/* ক্লাউড ইনস্টান্সে Restart/Shutdown লুকানো — ওগুলো শুধু লোকাল পিসির বটের জন্য */
+(function(){
+  function hideLocalOnly(){
+    try{
+      fetch('/api/sync/status').then(function(r){return r.json()}).then(function(j){
+        if(j.ok && j.local === false){
+          document.querySelectorAll('[data-local-only]').forEach(function(el){ el.style.display = 'none'; });
+        }
+      }).catch(function(){});
+    }catch(e){}
+  }
+  if(document.readyState === 'loading'){ document.addEventListener('DOMContentLoaded', hideLocalOnly); }
+  else { hideLocalOnly(); }
+})();
+</script>
 </body>
 </html>
