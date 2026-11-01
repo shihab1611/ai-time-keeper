@@ -48,6 +48,17 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {'pool_pre_ping': True}
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024
 
+@app.after_request
+def _no_cache_static(resp):
+    try:
+        p = (request.path or '').lower()
+        if p.endswith(('.html', '.js', '.webmanifest', '.json')) or p in ('/', '/dashboard', '/login', '/workspace'):
+            resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    except Exception:
+        pass
+    return resp
+
+
 db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
