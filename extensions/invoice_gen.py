@@ -16,8 +16,10 @@ INPUT_DIR = os.path.join(BASE, "input output")
 CFG_FILE = os.path.join(BASE, "extensions", "invoice_config.json")
 BACKUP_DIR = os.path.join(BASE, "backup")
 
-DRIVE_DIR = r"C:\Users\Admin\OneDrive\Desktop\somuj vai"
-ADV_DIR = os.path.join(DRIVE_DIR, "All Advance Sheets")
+# বট এখন শুধু নিজের ফোল্ডারের ফাইল ব্যবহার করে — শিটগুলো input output\-এ কপি করা আছে,
+# বাইরের (OneDrive/ডেস্কটপ) কোনো পাথ আর নেই (ইউজারের নির্দেশ: বট সম্পূর্ণ স্বয়ংসম্পূর্ণ)।
+DRIVE_DIR = INPUT_DIR
+ADV_DIR = INPUT_DIR
 ADV_FILE = os.path.join(ADV_DIR, "Advance sheet বট.xlsx")
 
 # Data-sheet worker name -> advance-sheet name (hand-confirmed aliases)
